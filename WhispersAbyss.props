@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros">
+    <ASIO_PATH>D:\BallanceMMO\submodule\asio</ASIO_PATH>
+    <VALVE_GNS_PATH>D:\BallanceMMO\submodule\GameNetworkingSockets</VALVE_GNS_PATH>
+    <FUCK_VALVE_GNS_PATH>D:\CppLib\FuckValveGns</FUCK_VALVE_GNS_PATH>
+  </PropertyGroup>
+  <PropertyGroup />
+  <ItemDefinitionGroup />
+  <ItemGroup>
+    <BuildMacro Include="ASIO_PATH">
+      <Value>$(ASIO_PATH)</Value>
+    </BuildMacro>
+    <BuildMacro Include="VALVE_GNS_PATH">
+      <Value>$(VALVE_GNS_PATH)</Value>
+    </BuildMacro>
+    <BuildMacro Include="FUCK_VALVE_GNS_PATH>">
+      <Value>$(FUCK_VALVE_GNS_PATH>)</Value>
+    </BuildMacro>
+  </ItemGroup>
+</Project>
