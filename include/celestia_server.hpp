@@ -4,6 +4,9 @@
 #include "asio.hpp"
 #include "output_helper.hpp"
 #include <atomic>
+#include <deque>
+#include "bmmo_message.hpp"
+#include "celestia_gnosis.hpp"
 
 namespace WhispersAbyss {
 
@@ -11,18 +14,26 @@ namespace WhispersAbyss {
 	public:
 		std::atomic_bool mIsRunning;
 
-		CelestiaServer(OutputHelper* output, uint16_t port);
+		CelestiaServer(OutputHelper* output, const char* port);
 		~CelestiaServer();
 
 		void Start();
 		void Stop();
 
+		void Send(std::deque<Bmmo::IMessage*>* manager_list);
+		void Recv(std::deque<Bmmo::IMessage*>* manager_list);
 	private:
+		uint64_t mIndexDistributor;
+		OutputHelper* mOutput;
 		uint16_t mPort;
 		std::atomic_bool mStopBroadcast;
 		asio::io_context mIoContext;	// this 2 decleartion should keep this order. due to init list order.
 		asio::ip::tcp::acceptor mTcpAcceptor;
 		std::thread mTdCtx, mTdBroadcast;
+
+		std::mutex mRecvMsgMutex, mSendMsgMutex, mConnectionsMutex;
+		std::deque<Bmmo::IMessage*> mRecvMsg, mSendMsg;
+		std::deque<CelestiaGnosis*> mConnections;
 
 		void BroadcastWorker();
 		void CtxWorker();

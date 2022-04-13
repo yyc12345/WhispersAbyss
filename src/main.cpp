@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
 	signalStop.store(false);
 
 	WhispersAbyss::OutputHelper outputHelper;
-	WhispersAbyss::CelestiaServer celestiaServer(&outputHelper, 6172);
+	WhispersAbyss::CelestiaServer celestiaServer(&outputHelper, "6172");
 	WhispersAbyss::AbyssClient abyssClient(&outputHelper, "2.bmmo.swung0x48.com:26676", "SwungMoe");
 
 	// start worker
