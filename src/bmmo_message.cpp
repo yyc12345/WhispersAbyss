@@ -3,11 +3,11 @@
 namespace WhispersAbyss {
 	namespace Bmmo {
 
-		IMessage* IMessage::CreateMessageFromStream(std::stringstream* data) {
+		Bmmo::IMessage* IMessage::CreateMessageFromStream(std::stringstream* data) {
 			// peek opcode
-			OpCode c;
-			data->read((char*)&c, sizeof(OpCode));
-			data->seekg(-sizeof(OpCode), std::ios_base::cur);
+			OpCode code;
+			data->read((char*)&code, sizeof(OpCode));
+			data->seekg(-(int32_t)(sizeof(OpCode)), std::ios_base::cur);
 
 			// check format
 			switch (code) {
@@ -39,7 +39,9 @@ namespace WhispersAbyss {
 					throw std::logic_error("Invalid OpCode!");
 			}
 
-			return new IMessage();
+			auto msg = new Bmmo::IMessage();
+			msg->Deserialize(data);
+			return msg;
 		}
 
 		IMessage::IMessage() :
@@ -57,6 +59,9 @@ namespace WhispersAbyss {
 			if (c != mInternalType) {
 				throw std::logic_error("OpCode is not matched between prototype and raw data.");
 			}
+		}
+		Bmmo::IMessage* IMessage::Clone() {
+			return new Bmmo::IMessage();
 		}
 		//uint32_t IMessage::ExpectedSize() {
 		//	return sizeof(OpCode);

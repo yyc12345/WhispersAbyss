@@ -25,6 +25,7 @@ void MainWorker(
 		// check exit
 		if (signalStop.load()) break;
 
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
 
 	output.Printf("Stoping server & client...");

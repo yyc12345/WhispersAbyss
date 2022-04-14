@@ -13,7 +13,7 @@ namespace WhispersAbyss {
 		mTdRecv(&CelestiaGnosis::RecvWorker, this),
 		mTdSend(&CelestiaGnosis::SendWorker, this)
 	{
-		mOutput->Printf("[Gnosis - #%ld] Connection instance created.", mIndex);
+		mOutput->Printf("[Gnosis-#%ld] Connection instance created.", mIndex);
 	}
 
 	CelestiaGnosis::~CelestiaGnosis() {
@@ -34,7 +34,7 @@ namespace WhispersAbyss {
 			delete ptr;
 		}
 
-		mOutput->Printf("[Gnosis - #%ld] Connection instance disposed.", mIndex);
+		mOutput->Printf("[Gnosis-#%ld] Connection instance disposed.", mIndex);
 	}
 
 	void CelestiaGnosis::Send(std::deque<Bmmo::IMessage*>* manager_list) {
@@ -43,24 +43,25 @@ namespace WhispersAbyss {
 		// push data
 		mSendMsgMutex.lock();
 		for(auto it = manager_list->begin(); it != manager_list->end(); ++it) {
-			manager_list->push_back(*it);
+			// push its clone.
+			mSendMsg.push_back((*it)->Clone());
 			// do not clean manager_list
 		}
 		msg_size = mSendMsg.size();
 		mSendMsgMutex.unlock();
 
 		if (msg_size >= WARNING_CAPACITY)
-			mOutput->Printf("[Gnosis - #%ld] Message list reach warning level: %d", mIndex, msg_size);
+			mOutput->Printf("[Gnosis-#%ld] Message list reach warning level: %d", mIndex, msg_size);
 		if (msg_size >= NUKE_CAPACITY) {
-			mOutput->Printf("[Gnosis - #%ld] Message list reach nuke level: %d. This gnosis will be nuked!!!", mIndex, msg_size);
+			mOutput->Printf("[Gnosis-#%ld] Message list reach nuke level: %d. This gnosis will be nuked!!!", mIndex, msg_size);
 			mSocket.close();
 		}
 	}
 	void CelestiaGnosis::Recv(std::deque<Bmmo::IMessage*>* manager_list) {
 		mRecvMsgMutex.lock();
-		while (mSendMsg.begin() != mSendMsg.end()) {
-			manager_list->push_back(*mSendMsg.begin());
-			mSendMsg.pop_front();
+		while (mRecvMsg.begin() != mRecvMsg.end()) {
+			manager_list->push_back(*mRecvMsg.begin());
+			mRecvMsg.pop_front();
 		}
 		mRecvMsgMutex.unlock();
 	}
@@ -71,16 +72,46 @@ namespace WhispersAbyss {
 
 	void CelestiaGnosis::SendWorker() {
 		Bmmo::IMessage* msg;
+		std::stringstream buffer;
+		asio::error_code ec;
 
 		while (IsConnected()) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
+			// get msg
 			mSendMsgMutex.lock();
 			if (mSendMsg.begin() != mSendMsg.end()) {
 				msg = *mSendMsg.begin();
 				mSendMsg.pop_front();
+			} else {
+				msg = NULL;
 			}
 			mSendMsgMutex.unlock();
 
+			// if no msg, sleep
+			if (msg == NULL) {
+				//std::this_thread::sleep_for(std::chrono::milliseconds(10));
+				continue;
+			}
+
+			// get serialized msg and delete msg
+			buffer.clear();
+			msg->Serialize(&buffer);
+			uint32_t length = buffer.str().size();
+			delete msg;
+			// write data
+			asio::write(mSocket, asio::buffer(&length, sizeof(uint32_t)), ec);
+			if (ec) {
+				mOutput->Printf("[Gnosis-#%ld] Fail to write header: %s", mIndex, ec.message().c_str());
+				mSocket.close();
+				return;
+			}
+			asio::write(mSocket, asio::buffer(buffer.str().data(), length), ec);
+			if (ec) {
+				mOutput->Printf("[Gnosis-#%ld] Fail to write body: %s", mIndex, ec.message().c_str());
+				mSocket.close();
+				return;
+			}
 
 		}
 	}
@@ -97,7 +128,7 @@ namespace WhispersAbyss {
 			asio::read(mSocket, asio::buffer(&mMsgHeader, sizeof(uint32_t)), ec);
 			if (!ec) {
 				if (mMsgHeader >= MAX_MSG_SIZE || mMsgHeader <= 0) {
-					mOutput->Printf("[Gnosis - #%ld] Header exceed MAX_MSG_SIZE or lower than 0.", mIndex);
+					mOutput->Printf("[Gnosis-#%ld] Header exceed MAX_MSG_SIZE or lower than 0.", mIndex);
 					mSocket.close();
 					return;
 				} else {
@@ -105,7 +136,7 @@ namespace WhispersAbyss {
 					;
 				}
 			} else {
-				mOutput->Printf("[Gnosis - #%ld] Fail to read header: %s", mIndex, ec.message().c_str());
+				mOutput->Printf("[Gnosis-#%ld] Fail to read header: %s", mIndex, ec.message().c_str());
 				mSocket.close();
 				return;
 			}
@@ -117,17 +148,17 @@ namespace WhispersAbyss {
 					
 				// set for stream
 				mMsgStream.clear();
-				mMsgStream << mMsgBuffer.c_str();
+				mMsgStream.write(mMsgBuffer.c_str(), mMsgHeader);
 
 				// get msg and push it
-				Bmmo::IMessage* msg = Bmmo::IMessage::CreateMessageFromStream(&mMsgStream);
+				auto msg = Bmmo::IMessage::CreateMessageFromStream(&mMsgStream);
 				mRecvMsgMutex.lock();
 				mRecvMsg.push_back(msg);
 				mRecvMsgMutex.unlock();
 
 				// for next reading
 			} else {
-				mOutput->Printf("[Gnosis - #%ld] Fail to read body: %s", mIndex, ec.message().c_str());
+				mOutput->Printf("[Gnosis-#%ld] Fail to read body: %s", mIndex, ec.message().c_str());
 				mSocket.close();
 				return;
 			}

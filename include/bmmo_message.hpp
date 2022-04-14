@@ -39,15 +39,31 @@ namespace WhispersAbyss {
             LevelFinish
         };
 
+        /*
+        Data Flow:
+
+        ---
+        Celestia -> Abyss
+
+
+        ---
+        Abyss -> Celestia
+
+        AbyssClient (new IMessage) -> MainWorker (deliver) -> 
+        CelestiaServer (IMessage.Clone, clone into each CelestiaGnosis) ->
+        CelestiaGnosis (delete ptr)
+
+        */
 		class IMessage {
 		public:
-            static IMessage* CreateMessageFromStream(std::stringstream* data);
+            static Bmmo::IMessage* CreateMessageFromStream(std::stringstream* data);
 
 			IMessage();
 			~IMessage();
 
             virtual void Serialize(std::stringstream* data);
             virtual void Deserialize(std::stringstream* data);
+            virtual Bmmo::IMessage* Clone();
             //virtual uint32_t ExpectedSize();
 		protected:
             OpCode mInternalType;

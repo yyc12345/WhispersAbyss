@@ -27,6 +27,7 @@ namespace WhispersAbyss {
 		// preparing broadcast worker and ctx worker
 		mStopBroadcast.store(false);
 		mTdCtx = std::thread(&CelestiaServer::CtxWorker, this);
+		mTdBroadcast = std::thread(&CelestiaServer::BroadcastWorker, this);
 
 		// notify main worker
 		mIsRunning.store(true);
@@ -69,34 +70,97 @@ namespace WhispersAbyss {
 
 	void CelestiaServer::Recv(std::deque<Bmmo::IMessage*>* manager_list) {
 		mRecvMsgMutex.lock();
-		while (mSendMsg.begin() != mSendMsg.end()) {
-			manager_list->push_back(*mSendMsg.begin());
-			mSendMsg.pop_front();
+		while (mRecvMsg.begin() != mRecvMsg.end()) {
+			manager_list->push_back(*mRecvMsg.begin());
+			mRecvMsg.pop_front();
 		}
 		mRecvMsgMutex.unlock();
 	}
 
 	void CelestiaServer::BroadcastWorker() {
-		CelestiaGnosis* connection;
+		std::deque<CelestiaGnosis*> pending_connection;
+		std::deque<Bmmo::IMessage*> pending_message;
+
+		std::deque<Bmmo::IMessage*> gotten_msg;
+		std::deque<CelestiaGnosis*> success_connection;
 
 		while (!mStopBroadcast.load()) {
-			// todo: add broadcast code
-			// pick first connection, process it and push it into tail
+			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+			// destroy all pending msg and clean it
+			while (pending_message.begin() != pending_message.end()) {
+				Bmmo::IMessage* msg = *pending_message.begin();
+				pending_message.pop_front();
+				delete msg;
+			}
+			// copy send message list
+			mSendMsgMutex.lock();
+			while (mSendMsg.begin() != mSendMsg.end()) {
+				pending_message.push_back(*mSendMsg.begin());
+				mSendMsg.pop_front();
+			}
+			mSendMsgMutex.unlock();
+			
+			// pick all connections, process it and push it into tail
+			pending_connection.clear();
 			mConnectionsMutex.lock();
-			if (mConnections.begin() == mConnections.end())
-				connection = NULL;
-			else
-				connection = *(mConnections.begin());
+			while (mConnections.begin() != mConnections.end()) {
+				pending_connection.push_back(*mConnections.begin());
+				mConnections.pop_front();
+			}
 			mConnectionsMutex.unlock();
 
 			// if no connection, sleep and back to next run
-			if (connection == NULL) {
-				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			if (pending_connection.size() == 0) {
+				//std::this_thread::sleep_for(std::chrono::milliseconds(10));
 				continue;
 			}
 
-			// push all existed message
+			// process connection
+			gotten_msg.clear();
+			success_connection.clear();
+			while (pending_connection.begin() != pending_connection.end()) {
+				// get current connection and pop it from pending connections
+				CelestiaGnosis* connection = *pending_connection.begin();
+				pending_connection.pop_front();
 
+				// detect status
+				// if lost connection, report
+				// and dispose it, never push it back into connections deque
+				if (!connection->IsConnected()) {
+					delete connection;
+					continue;
+				}
+
+				// push all send message
+				connection->Send(&pending_message);
+				// get all recv message and push into recv list
+				connection->Recv(&gotten_msg);
+				// push current connection back to connections
+				success_connection.push_back(connection);
+			}
+
+			// push recv data and success conn
+			mRecvMsgMutex.lock();
+			while (gotten_msg.begin() != gotten_msg.end()) {
+				mRecvMsg.push_back(*gotten_msg.begin());
+				gotten_msg.pop_front();
+			}
+			mRecvMsgMutex.unlock();
+
+			mConnectionsMutex.lock();
+			while (success_connection.begin() != success_connection.end()) {
+				mConnections.push_back(*success_connection.begin());
+				success_connection.pop_front();
+			}
+			mConnectionsMutex.unlock();
+
+			// destroy all pending msg
+			while (pending_message.begin() != pending_message.end()) {
+				Bmmo::IMessage* msg = *pending_message.begin();
+				pending_message.pop_front();
+				delete msg;
+			}
 		}
 	}
 
@@ -105,7 +169,11 @@ namespace WhispersAbyss {
 	}
 
 	void CelestiaServer::AcceptorWorker(std::error_code ec, asio::ip::tcp::socket socket) {
-		//todo: accept socket
+		// accept socket
+		CelestiaGnosis* new_connection = new CelestiaGnosis(mOutput, mIndexDistributor++, std::move(socket));
+		mConnectionsMutex.lock();
+		mConnections.push_back(new_connection);
+		mConnectionsMutex.unlock();
 
 		// accept new connection
 		RegisterAsyncWork();
