@@ -47,13 +47,13 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)out\$(Configuration)\</OutDir>
-    <IntDir>out\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir)out\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)out\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(SolutionDir)out\$(Configuration)\</OutDir>
-    <IntDir>out\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir)out\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)out\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -96,16 +96,20 @@
     <ClCompile Include="src\bmmo_message.cpp" />
     <ClCompile Include="src\celestia_gnosis.cpp" />
     <ClCompile Include="src\celestia_server.cpp" />
+    <ClCompile Include="src\cmmo_message.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\output_helper.cpp" />
+    <ClCompile Include="src\shared_message.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\abyss_client.hpp" />
     <ClInclude Include="include\bmmo_message.hpp" />
     <ClInclude Include="include\celestia_gnosis.hpp" />
     <ClInclude Include="include\celestia_server.hpp" />
+    <ClInclude Include="include\cmmo_message.hpp" />
     <ClInclude Include="include\global_define.hpp" />
     <ClInclude Include="include\output_helper.hpp" />
+    <ClInclude Include="include\shared_message.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

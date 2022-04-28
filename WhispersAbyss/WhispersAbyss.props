@@ -16,7 +16,7 @@
       <Value>$(VALVE_GNS_PATH)</Value>
     </BuildMacro>
     <BuildMacro Include="FUCK_VALVE_GNS_PATH>">
-      <Value>$(FUCK_VALVE_GNS_PATH>)</Value>
+      <Value>$(FUCK_VALVE_GNS_PATH)</Value>
     </BuildMacro>
   </ItemGroup>
 </Project>

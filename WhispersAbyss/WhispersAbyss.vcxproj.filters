@@ -33,6 +33,12 @@
     <ClCompile Include="src\celestia_gnosis.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
+    <ClCompile Include="src\cmmo_message.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\shared_message.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\celestia_server.hpp">
@@ -51,6 +57,12 @@
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="include\global_define.hpp">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cmmo_message.hpp">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\shared_message.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
   </ItemGroup>
