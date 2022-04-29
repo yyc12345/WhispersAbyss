@@ -132,6 +132,7 @@ namespace WhispersAbyss {
 				virtual bool Deserialize(std::stringstream* data) override;
 				virtual Bmmo::Messages::IMessage* Clone();
 
+				BMMO_PLAYER_UUID mPlayerId;
 				std::string mChatContent;
 			};
 

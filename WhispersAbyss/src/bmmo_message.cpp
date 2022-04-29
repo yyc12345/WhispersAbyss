@@ -138,6 +138,7 @@ namespace WhispersAbyss {
 				SSTREAM_PRE_WR(data);
 				SSTREAM_WR_FUNCTION(data, Bmmo::Messages::IMessage::Serialize(data));
 
+				SSTREAM_WR_STRUCT(data, BMMO_PLAYER_UUID, mPlayerId);
 				SSTREAM_WR_STRING(data, mChatContent);
 
 				SSTREAM_END_WR(data);
@@ -146,12 +147,14 @@ namespace WhispersAbyss {
 				SSTREAM_PRE_RD(data);
 				SSTREAM_RD_FUNCTION(data, Bmmo::Messages::IMessage::Deserialize(data));
 
+				SSTREAM_RD_STRUCT(data, BMMO_PLAYER_UUID, mPlayerId);
 				SSTREAM_RD_STRING(data, mChatContent);
 
 				SSTREAM_END_RD(data);
 			}
 			Bmmo::Messages::IMessage* Chat::Clone() {
 				Bmmo::Messages::Chat* obj = new Bmmo::Messages::Chat();
+				obj->mPlayerId = this->mPlayerId;
 				obj->mChatContent = this->mChatContent.c_str();
 				return obj;
 			}
