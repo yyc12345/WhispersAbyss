@@ -4,7 +4,6 @@
 #include <stdexcept>
 #include <sstream>
 #include <vector>
-#include <unordered_map>
 #include "../include/shared_message.hpp"
 #include <steam/steamnetworkingtypes.h>
 
@@ -13,220 +12,299 @@
 namespace WhispersAbyss {
 	namespace Bmmo {
 
-        class PlayerStatusWithCheat {
-        public:
-            std::string name;
-            uint8_t cheated;
-        };
+		class PlayerRegister {
+		public:
+			BMMO_PLAYER_UUID mPlayerId;
+			std::string mNickname;
 
-        enum PluginStage : uint8_t {
-            Alpha,
-            Beta,
-            RC,
-            Release
-        };
-        class PluginVersion {
-        public:
-            uint8_t mMajor;
-            uint8_t mMinor;
-            uint8_t mSubminor;
-            PluginStage mStage;
-            uint8_t mBuild;
-        };
+			//bool Serialize(std::stringstream* data);
+			//bool Deserialize(std::stringstream* data);
+			PlayerRegister* Clone();
+		};
+		class PlayerRegisterV2 {
+		public:
+			BMMO_PLAYER_UUID mPlayerId;
+			std::string mNickname;
+			uint8_t mCheated;
 
-        enum OpCode : uint32_t {
-            None,
-            LoginRequest,
-            LoginAccepted,
-            LoginDenied,
-            PlayerDisconnected,
-            PlayerConnected,
+			//bool Serialize(std::stringstream* data);
+			//bool Deserialize(std::stringstream* data);
+			PlayerRegisterV2* Clone();
+		};
 
-            Ping,
-            BallState,
-            OwnedBallState,
-            KeyboardInput,
+		enum PluginStage : uint8_t {
+			Alpha,
+			Beta,
+			RC,
+			Release
+		};
+		class PluginVersion {
+		public:
+			uint8_t mMajor;
+			uint8_t mMinor;
+			uint8_t mSubminor;
+			PluginStage mStage;
+			uint8_t mBuild;
 
-            Chat,
+			//bool Serialize(std::stringstream* data);
+			//bool Deserialize(std::stringstream* data);
+			//PluginVersion* Clone();
+			void CopyTo(PluginVersion* dest);
+		};
 
-            LevelFinish,
+		enum class OpCode : uint32_t {
+			None,
+			LoginRequest,
+			LoginAccepted,
+			LoginDenied,
+			PlayerDisconnected,
+			PlayerConnected,
 
-            LoginRequestV2,
-            LoginAcceptedV2,
-            PlayerConnectedV2,
+			Ping,
+			BallState,
+			OwnedBallState,
+			KeyboardInput,
 
-            CheatState,
-            OwnedCheatState,
-            CheatToggle,
-            OwnedCheatToggle
-        };
+			Chat,
 
-        /*
-        Data Flow:
+			LevelFinish,
 
-        ---
-        Celestia -> Abyss
+			LoginRequestV2,
+			LoginAcceptedV2,
+			PlayerConnectedV2,
+
+			CheatState,
+			OwnedCheatState,
+			CheatToggle,
+			OwnedCheatToggle
+		};
+
+		/*
+		Data Flow:
+
+		---
+		Celestia -> Abyss
 
 
-        ---
-        Abyss -> Celestia
+		---
+		Abyss -> Celestia
 
-        AbyssClient (new IMessage) -> MainWorker (deliver) -> 
-        CelestiaServer (IMessage.Clone, clone into each CelestiaGnosis) ->
-        CelestiaGnosis (delete ptr)
+		AbyssClient (new IMessage) -> MainWorker (deliver) ->
+		CelestiaServer (IMessage.Clone, clone into each CelestiaGnosis) ->
+		CelestiaGnosis (delete ptr)
 
-        */
-        class IMessage : public SharedMMO::IMessage {
-        public:
-            static Bmmo::IMessage* CreateMessageFromStream(std::stringstream* data);
+		*/
+		namespace Messages {
 
-            IMessage();
-            virtual ~IMessage();
+			class IMessage : public SharedMMO::IMessage {
+			public:
+				static Bmmo::Messages::IMessage* CreateMessageFromStream(std::stringstream* data);
 
-            virtual bool Serialize(std::stringstream* data) override;
-            virtual bool Deserialize(std::stringstream* data) override;
-            virtual Bmmo::IMessage* Clone();
-        };
+				IMessage();
+				virtual ~IMessage();
 
-        class BallState : public IMessage {
-        public:
-            BallState();
-            virtual ~BallState();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
+			};
 
-            uint32_t mType;
-            SharedMMO::VxVector mPosition;
-            SharedMMO::VxQuaternion mRotation;
-        };
+			class BallState : public IMessage {
+			public:
+				BallState();
+				virtual ~BallState();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
 
-        class Chat : public IMessage {
-        public:
-            Chat();
-            virtual ~Chat();
+				uint32_t mType;
+				SharedMMO::VxVector mPosition;
+				SharedMMO::VxQuaternion mRotation;
 
-            std::string mChatContent;
-        };
+			protected:
+				void CopyTo(Bmmo::Messages::BallState* obj);
+			};
 
-        class CheatState : public IMessage {
-        public:
-            CheatState();
-            virtual ~CheatState();
+			class Chat : public IMessage {
+			public:
+				Chat();
+				virtual ~Chat();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
 
-            uint8_t mCheated;
-            uint8_t mNotify;
-        };
+				std::string mChatContent;
+			};
 
-        class CheatToggle : public IMessage {
-        public:
-            CheatToggle();
-            virtual ~CheatToggle();
+			class CheatState : public IMessage {
+			public:
+				CheatState();
+				virtual ~CheatState();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
 
-            uint8_t mCheated;
-            uint8_t mNotify;
-        };
+				uint8_t mCheated;
+				uint8_t mNotify;
 
-        class LevelFinish : public IMessage {
-        public:
-            LevelFinish();
-            virtual ~LevelFinish();
+			protected:
+				void CopyTo(Bmmo::Messages::CheatState* obj);
+			};
 
-            BMMO_PLAYER_UUID mPlayerId;
-            int mPoints, mLifes, mLifeBouns, mLevelBouns;
-            float mTimeElapsed;
+			class CheatToggle : public IMessage {
+			public:
+				CheatToggle();
+				virtual ~CheatToggle();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
 
-            int mStartPoints, mCurrentLevel;
-            bool mCheated;
-        };
+				uint8_t mCheated;
+				uint8_t mNotify;
 
-        class LoginAccepted : public IMessage {
-        public:
-            LoginAccepted();
-            virtual ~LoginAccepted();
+			protected:
+				void CopyTo(Bmmo::Messages::CheatToggle* obj);
+			};
 
-            std::unordered_map<BMMO_PLAYER_UUID, std::string*> mOnlinePlayers;
-        };
+			class LevelFinish : public IMessage {
+			public:
+				LevelFinish();
+				virtual ~LevelFinish();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
 
-        class LoginAcceptedV2 : public IMessage {
-        public:
-            LoginAcceptedV2();
-            virtual ~LoginAcceptedV2();
+				BMMO_PLAYER_UUID mPlayerId;
+				int mPoints, mLifes, mLifeBouns, mLevelBouns;
+				float mTimeElapsed;
 
-            std::unordered_map<BMMO_PLAYER_UUID, PlayerStatusWithCheat*> mOnlinePlayers;
-        };
+				int mStartPoints, mCurrentLevel;
+				bool mCheated;
+			};
 
-        class LoginDenied : public IMessage {
-        public:
-            LoginDenied();
-            virtual ~LoginDenied();
-        };
+			class LoginAccepted : public IMessage {
+			public:
+				LoginAccepted();
+				virtual ~LoginAccepted();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
 
-        class LoginRequest : public IMessage {
-        public:
-            LoginRequest();
-            virtual ~LoginRequest();
+				std::vector<Bmmo::PlayerRegister*> mOnlinePlayers;
+			};
 
-            std::string mNickname;
-        };
+			class LoginAcceptedV2 : public IMessage {
+			public:
+				LoginAcceptedV2();
+				virtual ~LoginAcceptedV2();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
 
-        class LoginRequestV2 : public IMessage {
-        public:
-            LoginRequestV2();
-            virtual ~LoginRequestV2();
+				std::vector<Bmmo::PlayerRegisterV2*> mOnlinePlayers;
+			};
 
-            std::string mNickname;
-            PluginVersion mVersion;
-            uint8_t mCheated;
-        };
+			class LoginDenied : public IMessage {
+			public:
+				LoginDenied();
+				virtual ~LoginDenied();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
+			};
 
-        class OwnedBallState : public BallState {
-        public:
-            OwnedBallState();
-            virtual ~OwnedBallState();
+			class LoginRequest : public IMessage {
+			public:
+				LoginRequest();
+				virtual ~LoginRequest();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
 
-            BMMO_PLAYER_UUID mPlayerId;
-        };
+				std::string mNickname;
+			};
 
-        class OwnedCheatState : public CheatState {
-        public:
-            OwnedCheatState();
-            virtual ~OwnedCheatState();
+			class LoginRequestV2 : public IMessage {
+			public:
+				LoginRequestV2();
+				virtual ~LoginRequestV2();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
 
-            BMMO_PLAYER_UUID mPlayerId;
-        };
+				std::string mNickname;
+				Bmmo::PluginVersion mVersion;
+				uint8_t mCheated;
+			};
 
-        class OwnedCheatToggle : public CheatToggle {
-        public:
-            OwnedCheatToggle();
-            virtual ~OwnedCheatToggle();
+			class OwnedBallState : public BallState {
+			public:
+				OwnedBallState();
+				virtual ~OwnedBallState();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
 
-            BMMO_PLAYER_UUID mPlayerId;
-        };
+				BMMO_PLAYER_UUID mPlayerId;
+			};
 
-        class PlayerConnected : public IMessage {
-        public:
-            PlayerConnected();
-            virtual ~PlayerConnected();
+			class OwnedCheatState : public CheatState {
+			public:
+				OwnedCheatState();
+				virtual ~OwnedCheatState();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
 
-            BMMO_PLAYER_UUID mPlayerId;
-            std::string mName;
-        };
+				BMMO_PLAYER_UUID mPlayerId;
+			};
 
-        class PlayerConnectedV2 : public IMessage {
-        public:
-            PlayerConnectedV2();
-            virtual ~PlayerConnectedV2();
+			class OwnedCheatToggle : public CheatToggle {
+			public:
+				OwnedCheatToggle();
+				virtual ~OwnedCheatToggle();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
 
-            BMMO_PLAYER_UUID mPlayerId;
-            std::string mName;
-            uint8_t mCheated;
-        };
+				BMMO_PLAYER_UUID mPlayerId;
+			};
 
-        class PlayerDisconnected : public IMessage {
-        public:
-            PlayerDisconnected();
-            virtual ~PlayerDisconnected();
+			class PlayerConnected : public IMessage {
+			public:
+				PlayerConnected();
+				virtual ~PlayerConnected();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
 
-            BMMO_PLAYER_UUID mPlayerId;
-        };
+				BMMO_PLAYER_UUID mPlayerId;
+				std::string mName;
+			};
 
+			class PlayerConnectedV2 : public IMessage {
+			public:
+				PlayerConnectedV2();
+				virtual ~PlayerConnectedV2();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
+
+				BMMO_PLAYER_UUID mPlayerId;
+				std::string mName;
+				uint8_t mCheated;
+			};
+
+			class PlayerDisconnected : public IMessage {
+			public:
+				PlayerDisconnected();
+				virtual ~PlayerDisconnected();
+				virtual bool Serialize(std::stringstream* data) override;
+				virtual bool Deserialize(std::stringstream* data) override;
+				virtual Bmmo::Messages::IMessage* Clone();
+
+				BMMO_PLAYER_UUID mPlayerId;
+			};
+
+		}
 	}
 }
