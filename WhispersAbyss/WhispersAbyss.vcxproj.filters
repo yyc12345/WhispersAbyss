@@ -39,6 +39,9 @@
     <ClCompile Include="src\shared_message.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
+    <ClCompile Include="src\mmo_converter.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\celestia_server.hpp">
@@ -63,6 +66,9 @@
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="include\shared_message.hpp">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mmo_converter.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
   </ItemGroup>

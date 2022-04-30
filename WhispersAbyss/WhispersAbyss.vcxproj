@@ -100,6 +100,7 @@
     <ClCompile Include="src\celestia_server.cpp" />
     <ClCompile Include="src\cmmo_message.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\mmo_converter.cpp" />
     <ClCompile Include="src\output_helper.cpp" />
     <ClCompile Include="src\shared_message.cpp" />
   </ItemGroup>
@@ -110,6 +111,7 @@
     <ClInclude Include="include\celestia_server.hpp" />
     <ClInclude Include="include\cmmo_message.hpp" />
     <ClInclude Include="include\global_define.hpp" />
+    <ClInclude Include="include\mmo_converter.hpp" />
     <ClInclude Include="include\output_helper.hpp" />
     <ClInclude Include="include\shared_message.hpp" />
   </ItemGroup>

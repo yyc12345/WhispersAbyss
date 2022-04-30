@@ -27,8 +27,10 @@ namespace WhispersAbyss {
 		OutputHelper* mOutput;
 		uint16_t mPort;
 		std::atomic_bool mStopBroadcast;
+		
 		asio::io_context mIoContext;	// this 2 decleartion should keep this order. due to init list order.
 		asio::ip::tcp::acceptor mTcpAcceptor;
+		
 		std::thread mTdCtx, mTdBroadcast;
 
 		std::mutex mRecvMsgMutex, mSendMsgMutex, mConnectionsMutex;
