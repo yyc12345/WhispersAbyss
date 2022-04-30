@@ -11,8 +11,7 @@ namespace WhispersAbyss {
 		mRecvMsgMutex(), mSendMsgMutex(),
 		mRecvMsg(), mSendMsg(),
 		mTdRecv(&CelestiaGnosis::RecvWorker, this),
-		mTdSend(&CelestiaGnosis::SendWorker, this)
-	{
+		mTdSend(&CelestiaGnosis::SendWorker, this) {
 		mOutput->Printf("[Gnosis-#%ld] Connection instance created.", mIndex);
 	}
 
@@ -21,9 +20,9 @@ namespace WhispersAbyss {
 			mTdRecv.join();
 		if (mTdSend.joinable())
 			mTdSend.join();
-		
-		WhispersAbyss::Bmmo::IMessage* ptr;
-		while(mRecvMsg.begin() != mRecvMsg.end()) {
+
+		WhispersAbyss::Cmmo::Messages::IMessage* ptr;
+		while (mRecvMsg.begin() != mRecvMsg.end()) {
 			ptr = *mRecvMsg.begin();
 			mRecvMsg.pop_front();
 			delete ptr;
@@ -37,12 +36,12 @@ namespace WhispersAbyss {
 		mOutput->Printf("[Gnosis-#%ld] Connection instance disposed.", mIndex);
 	}
 
-	void CelestiaGnosis::Send(std::deque<Bmmo::IMessage*>* manager_list) {
+	void CelestiaGnosis::Send(std::deque<Cmmo::Messages::IMessage*>* manager_list) {
 		size_t msg_size;
 
 		// push data
 		mSendMsgMutex.lock();
-		for(auto it = manager_list->begin(); it != manager_list->end(); ++it) {
+		for (auto it = manager_list->begin(); it != manager_list->end(); ++it) {
 			// push its clone.
 			mSendMsg.push_back((*it)->Clone());
 			// do not clean manager_list
@@ -57,7 +56,7 @@ namespace WhispersAbyss {
 			mSocket.close();
 		}
 	}
-	void CelestiaGnosis::Recv(std::deque<Bmmo::IMessage*>* manager_list) {
+	void CelestiaGnosis::Recv(std::deque<Cmmo::Messages::IMessage*>* manager_list) {
 		mRecvMsgMutex.lock();
 		while (mRecvMsg.begin() != mRecvMsg.end()) {
 			manager_list->push_back(*mRecvMsg.begin());
@@ -70,8 +69,66 @@ namespace WhispersAbyss {
 		return mSocket.is_open();
 	}
 
+	Cmmo::Messages::IMessage* CelestiaGnosis::CreateMessageFromStream(std::stringstream* data) {
+		// peek opcode
+		Cmmo::OpCode code = Cmmo::Messages::IMessage::PeekOpCode(data);
+
+		// check format
+		Cmmo::Messages::IMessage* msg = NULL;
+		switch (code) {
+			case WhispersAbyss::Cmmo::OpCode::None:
+				mOutput->Printf("[Gnosis-#%ld] Invalid OpCode %d.", mIndex, code);
+				break;
+			case WhispersAbyss::Cmmo::OpCode::CS_OrderChat:
+				msg = new Cmmo::Messages::OrderChat();
+				break;
+			case WhispersAbyss::Cmmo::OpCode::SC_Chat:
+				msg = new Cmmo::Messages::Chat();
+				break;
+			case WhispersAbyss::Cmmo::OpCode::CS_OrderGlobalCheat:
+				msg = new Cmmo::Messages::OrderGlobalCheat();
+				break;
+			case WhispersAbyss::Cmmo::OpCode::CS_OrderClientList:
+				msg = new Cmmo::Messages::OrderClientList();
+				break;
+			case WhispersAbyss::Cmmo::OpCode::SC_ClientList:
+				msg = new Cmmo::Messages::ClientList();
+				break;
+			case WhispersAbyss::Cmmo::OpCode::SC_BallState:
+				msg = new Cmmo::Messages::BallState();
+				break;
+			case WhispersAbyss::Cmmo::OpCode::SC_ClientConnected:
+				msg = new Cmmo::Messages::ClientConnected();
+				break;
+			case WhispersAbyss::Cmmo::OpCode::SC_ClientDisconnected:
+				msg = new Cmmo::Messages::ClientDisconnected();
+				break;
+			case WhispersAbyss::Cmmo::OpCode::SC_CheatState:
+				msg = new Cmmo::Messages::CheatState();
+				break;
+			case WhispersAbyss::Cmmo::OpCode::SC_GlobalCheat:
+				msg = new Cmmo::Messages::GlobalCheat();
+				break;
+			case WhispersAbyss::Cmmo::OpCode::SC_LevelFinish:
+				msg = new Cmmo::Messages::LevelFinish();
+				break;
+			default:
+				mOutput->Printf("[Gnosis-#%ld] Unknow OpCode %d.", mIndex, code);
+				break;
+		}
+
+		if (msg != NULL) {
+			if (!msg->Deserialize(data)) {
+				mOutput->Printf("[Gnosis-#%ld] Fail to parse message with OpCode %d.", mIndex, code);
+				delete msg;
+				msg = NULL;
+			}
+		}
+		return msg;
+	}
+
 	void CelestiaGnosis::SendWorker() {
-		Bmmo::IMessage* msg;
+		Cmmo::Messages::IMessage* msg;
 		std::stringstream buffer;
 		asio::error_code ec;
 
@@ -145,16 +202,18 @@ namespace WhispersAbyss {
 			mMsgBuffer.resize(mMsgHeader);
 			asio::read(mSocket, asio::buffer(mMsgBuffer.data(), mMsgHeader), ec);
 			if (!ec) {
-					
+
 				// set for stream
 				mMsgStream.clear();
 				mMsgStream.write(mMsgBuffer.c_str(), mMsgHeader);
 
 				// get msg and push it
-				auto msg = Bmmo::IMessage::CreateMessageFromStream(&mMsgStream);
-				mRecvMsgMutex.lock();
-				mRecvMsg.push_back(msg);
-				mRecvMsgMutex.unlock();
+				auto msg = CreateMessageFromStream(&mMsgStream);
+				if (msg != NULL) {
+					mRecvMsgMutex.lock();
+					mRecvMsg.push_back(msg);
+					mRecvMsgMutex.unlock();
+				}
 
 				// for next reading
 			} else {
@@ -166,7 +225,7 @@ namespace WhispersAbyss {
 		}
 	}
 
-	
+
 
 	//void CelestiaGnosis::RegisterHeaderRead() {
 	//	asio::async_read(

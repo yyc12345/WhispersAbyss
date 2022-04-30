@@ -5,11 +5,25 @@
 #include <sstream>
 #include <vector>
 #include "../include/shared_message.hpp"
+#include "../include/bmmo_message.hpp"
 
 #define CMMO_PLAYER_UUID uint32_t
 
 namespace WhispersAbyss {
 	namespace Cmmo {
+
+		class PlayerEntity {
+		public:
+			CMMO_PLAYER_UUID mPlayerId;
+			std::string mNickname;
+			uint8_t mCheated;
+
+			//bool Serialize(std::stringstream* data);
+			//bool Deserialize(std::stringstream* data);
+			PlayerEntity* Clone();
+			void CopyTo(Cmmo::PlayerEntity* dest);
+			void InitFrom(Bmmo::PlayerRegisterV2* obj);
+		};
 
 		enum class OpCode : uint32_t {
 			None,
@@ -32,16 +46,16 @@ namespace WhispersAbyss {
 
 		namespace Messages {
 
-			class IMessage : public SharedMMO::IMessage {
+			class IMessage : public WhispersAbyss::SharedMMO::IMessage {
 			public:
-				static Cmmo::Messages::IMessage* CreateMessageFromStream(std::stringstream* data);
-
 				IMessage();
 				virtual ~IMessage();
 
 				virtual bool Serialize(std::stringstream* data) override;
 				virtual bool Deserialize(std::stringstream* data) override;
 				virtual Cmmo::Messages::IMessage* Clone();
+				OpCode GetOpCode();
+				static OpCode PeekOpCode(std::stringstream* data);
 			};
 
 			class OrderChat : public IMessage {
@@ -100,7 +114,7 @@ namespace WhispersAbyss {
 				virtual bool Deserialize(std::stringstream* data) override;
 				virtual Cmmo::Messages::IMessage* Clone();
 
-				std::vector<Bmmo::PlayerRegisterV2*> mOnlinePlayers;
+				std::vector<PlayerEntity*> mOnlinePlayers;
 			};
 
 			class BallState : public IMessage {
@@ -111,6 +125,7 @@ namespace WhispersAbyss {
 				virtual bool Deserialize(std::stringstream* data) override;
 				virtual Cmmo::Messages::IMessage* Clone();
 
+				CMMO_PLAYER_UUID mPlayerId;
 				uint32_t mType;
 				SharedMMO::VxVector mPosition;
 				SharedMMO::VxQuaternion mRotation;
@@ -124,7 +139,7 @@ namespace WhispersAbyss {
 				virtual bool Deserialize(std::stringstream* data) override;
 				virtual Cmmo::Messages::IMessage* Clone();
 
-				Bmmo::PlayerRegisterV2 mPlayer;
+				PlayerEntity mPlayer;
 			};
 
 			class ClientDisconnected : public IMessage {
@@ -145,6 +160,9 @@ namespace WhispersAbyss {
 				virtual bool Serialize(std::stringstream* data) override;
 				virtual bool Deserialize(std::stringstream* data) override;
 				virtual Cmmo::Messages::IMessage* Clone();
+
+				CMMO_PLAYER_UUID mPlayerId;
+				uint8_t mCheated;
 			};
 
 			class GlobalCheat : public OrderGlobalCheat {

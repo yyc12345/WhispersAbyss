@@ -3,7 +3,7 @@
 #include <sdkddkver.h>	// need by asio
 #include "asio.hpp"
 #include "output_helper.hpp"
-#include "bmmo_message.hpp"
+#include "cmmo_message.hpp"
 #include <deque>
 #include <mutex>
 #include <string>
@@ -15,8 +15,8 @@ namespace WhispersAbyss {
 		CelestiaGnosis(OutputHelper* output, uint64_t index, asio::ip::tcp::socket socket);
 		~CelestiaGnosis();
 
-		void Send(std::deque<Bmmo::IMessage*>* manager_list);
-		void Recv(std::deque<Bmmo::IMessage*>* manager_list);
+		void Send(std::deque<Cmmo::Messages::IMessage*>* manager_list);
+		void Recv(std::deque<Cmmo::Messages::IMessage*>* manager_list);
 		bool IsConnected();
 	private:
 		uint64_t mIndex;
@@ -24,13 +24,15 @@ namespace WhispersAbyss {
 		asio::ip::tcp::socket mSocket;
 
 		std::mutex mRecvMsgMutex, mSendMsgMutex;
-		std::deque<Bmmo::IMessage*> mRecvMsg, mSendMsg;
+		std::deque<Cmmo::Messages::IMessage*> mRecvMsg, mSendMsg;
 
 		//uint32_t mMsgHeader;
 		//std::string mMsgBuffer;
 		//std::stringstream mMsgStream;
 
 		std::thread mTdSend, mTdRecv;
+
+		Cmmo::Messages::IMessage* CreateMessageFromStream(std::stringstream* data);
 
 		// Write routine:
 		void SendWorker();

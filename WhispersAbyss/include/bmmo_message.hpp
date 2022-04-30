@@ -20,6 +20,7 @@ namespace WhispersAbyss {
 			//bool Serialize(std::stringstream* data);
 			//bool Deserialize(std::stringstream* data);
 			PlayerRegister* Clone();
+			void CopyTo(PlayerRegister* obj);
 		};
 		class PlayerRegisterV2 {
 		public:
@@ -30,9 +31,10 @@ namespace WhispersAbyss {
 			//bool Serialize(std::stringstream* data);
 			//bool Deserialize(std::stringstream* data);
 			PlayerRegisterV2* Clone();
+			void CopyTo(PlayerRegisterV2* obj);
 		};
 
-		enum PluginStage : uint8_t {
+		enum class PluginStage : uint8_t {
 			Alpha,
 			Beta,
 			RC,
@@ -49,7 +51,7 @@ namespace WhispersAbyss {
 			//bool Serialize(std::stringstream* data);
 			//bool Deserialize(std::stringstream* data);
 			//PluginVersion* Clone();
-			void CopyTo(PluginVersion* dest);
+			void CopyTo(PluginVersion* obj);
 		};
 
 		enum class OpCode : uint32_t {
@@ -96,16 +98,16 @@ namespace WhispersAbyss {
 		*/
 		namespace Messages {
 
-			class IMessage : public SharedMMO::IMessage {
+			class IMessage : public WhispersAbyss::SharedMMO::IMessage {
 			public:
-				static Bmmo::Messages::IMessage* CreateMessageFromStream(std::stringstream* data);
-
 				IMessage();
 				virtual ~IMessage();
 
 				virtual bool Serialize(std::stringstream* data) override;
 				virtual bool Deserialize(std::stringstream* data) override;
 				virtual Bmmo::Messages::IMessage* Clone();
+				OpCode GetOpCode();
+				static OpCode PeekOpCode(std::stringstream* data);
 			};
 
 			class BallState : public IMessage {

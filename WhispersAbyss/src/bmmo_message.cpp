@@ -3,75 +3,40 @@
 namespace WhispersAbyss {
 	namespace Bmmo {
 
+#pragma region struct define
+
 		PlayerRegister* PlayerRegister::Clone() {
-			return nullptr;
+			PlayerRegister* obj = new PlayerRegister();
+			CopyTo(obj);
+			return obj;
 		}
+		void WhispersAbyss::Bmmo::PlayerRegister::CopyTo(PlayerRegister* obj) {
+			obj->mPlayerId = this->mPlayerId;
+			obj->mNickname = this->mNickname;
+		}
+
 		PlayerRegisterV2* PlayerRegisterV2::Clone() {
-			return nullptr;
+			PlayerRegisterV2* obj = new PlayerRegisterV2();
+			CopyTo(obj);
+			return obj;
 		}
+		void WhispersAbyss::Bmmo::PlayerRegisterV2::CopyTo(PlayerRegisterV2* obj) {
+			obj->mPlayerId = this->mPlayerId;
+			obj->mNickname = this->mNickname;
+			obj->mCheated = this->mCheated;
+		}
+
+		void WhispersAbyss::Bmmo::PluginVersion::CopyTo(PluginVersion* obj) {
+			obj->mMajor = this->mMajor;
+			obj->mMinor = this->mMinor;
+			obj->mSubminor = this->mSubminor;
+			obj->mStage = this->mStage;
+			obj->mBuild = this->mBuild;
+		}
+
+#pragma endregion
 
 		namespace Messages {
-
-#pragma region IMessage
-
-			Bmmo::Messages::IMessage* Bmmo::Messages::IMessage::CreateMessageFromStream(std::stringstream* data) {
-				// peek opcode
-				OpCode code{};
-				data->read((char*)&code, sizeof(OpCode));
-				data->seekg(-(int32_t)(sizeof(OpCode)), std::ios_base::cur);
-
-				// check format
-				Bmmo::Messages::IMessage* msg = NULL;
-				bool parse_success = false;
-				switch (code) {
-					case WhispersAbyss::Bmmo::OpCode::LoginRequest:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::LoginAccepted:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::LoginDenied:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::PlayerDisconnected:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::PlayerConnected:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::Ping:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::BallState:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::OwnedBallState:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::KeyboardInput:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::Chat:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::LevelFinish:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::LoginRequestV2:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::LoginAcceptedV2:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::PlayerConnectedV2:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::CheatState:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::OwnedCheatState:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::CheatToggle:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::OwnedCheatToggle:
-						break;
-					case WhispersAbyss::Bmmo::OpCode::None:
-					default:
-						msg = new Bmmo::Messages::IMessage();
-				}
-
-				parse_success = msg->Deserialize(data);
-				if (!parse_success) {
-					delete msg;
-					msg = NULL;
-				}
-				return msg;
-			}
 
 			IMessage::IMessage() { mInternalType = (uint32_t)OpCode::None; }
 			IMessage::~IMessage() {}
@@ -88,8 +53,12 @@ namespace WhispersAbyss {
 			Bmmo::Messages::IMessage* IMessage::Clone() {
 				return new Bmmo::Messages::IMessage();
 			}
-
-#pragma endregion
+			OpCode IMessage::GetOpCode() {
+				return (OpCode)mInternalType;
+			}
+			OpCode IMessage::PeekOpCode(std::stringstream* data) {
+				return (OpCode)peekInternalType(data);
+			}
 
 			//---------------------------------------
 			// 

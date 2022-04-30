@@ -21,7 +21,7 @@
     <ClCompile Include="src\celestia_server.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="src\abyss_server.cpp">
+    <ClCompile Include="src\abyss_client.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="src\output_helper.cpp">

@@ -1,8 +1,6 @@
 #pragma once
 
 #include <sstream>
-#include "bmmo_message.hpp"
-#include "cmmo_message.hpp"
 
 #define SSTREAM_PRE_RD(ss) if (!(ss)->good()) \
 return false;
@@ -34,39 +32,38 @@ return false;
 namespace WhispersAbyss {
 	namespace SharedMMO {
 
-        Bmmo::Messages::IMessage* Cmmo2BmmoMsg(Cmmo::Messages::IMessage* msg);
-        Cmmo::Messages::IMessage* Bmmo2CmmoMsg(Bmmo::Messages::IMessage* msg);
+		struct VxVector {
+			float x = 0.0;
+			float y = 0.0;
+			float z = 0.0;
+		};
 
-        struct VxVector {
-            float x = 0.0;
-            float y = 0.0;
-            float z = 0.0;
-        };
+		struct VxQuaternion {
+			float x = 0.0;
+			float y = 0.0;
+			float z = 0.0;
+			float w = 0.0;
+		};
 
-        struct VxQuaternion {
-            float x = 0.0;
-            float y = 0.0;
-            float z = 0.0;
-            float w = 0.0;
-        };
+		class IMessage {
+		public:
+			IMessage() {};
+			virtual ~IMessage() {};
 
-        class IMessage {
-        public:
-            IMessage();
-            virtual ~IMessage();
+			virtual bool Serialize(std::stringstream* data) = 0;
+			virtual bool Deserialize(std::stringstream* data) = 0;
+			//virtual SharedMMO::IMessage* Clone();
+			//virtual uint32_t ExpectedSize();
+		protected:
+			uint32_t mInternalType;
+			bool inOpCode(std::stringstream* data);
+			bool outOpCode(std::stringstream* data);
 
-            virtual bool Serialize(std::stringstream* data)=0;
-            virtual bool Deserialize(std::stringstream* data)=0;
-            //virtual SharedMMO::IMessage* Clone();
-            //virtual uint32_t ExpectedSize();
-        protected:
-            uint32_t mInternalType;
-            bool inOpCode(std::stringstream* data);
-            bool outOpCode(std::stringstream* data);
+			bool inStdstring(std::stringstream* data, std::string* strl);
+			bool outStdstring(std::stringstream* data, std::string* strl);
 
-            bool inStdstring(std::stringstream* data, std::string* strl);
-            bool outStdstring(std::stringstream* data, std::string* strl);
-        };
+			static uint32_t peekInternalType(std::stringstream* data);
+		};
 
 	}
 }

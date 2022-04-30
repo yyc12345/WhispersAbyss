@@ -49,7 +49,7 @@ namespace WhispersAbyss {
 		mIsRunning.store(false);
 	}
 
-	void CelestiaServer::Send(std::deque<Bmmo::IMessage*>* manager_list) {
+	void CelestiaServer::Send(std::deque<Cmmo::Messages::IMessage*>* manager_list) {
 		size_t msg_size;
 
 		// push data
@@ -68,7 +68,7 @@ namespace WhispersAbyss {
 		}
 	}
 
-	void CelestiaServer::Recv(std::deque<Bmmo::IMessage*>* manager_list) {
+	void CelestiaServer::Recv(std::deque<Cmmo::Messages::IMessage*>* manager_list) {
 		mRecvMsgMutex.lock();
 		while (mRecvMsg.begin() != mRecvMsg.end()) {
 			manager_list->push_back(*mRecvMsg.begin());
@@ -79,9 +79,9 @@ namespace WhispersAbyss {
 
 	void CelestiaServer::BroadcastWorker() {
 		std::deque<CelestiaGnosis*> pending_connection;
-		std::deque<Bmmo::IMessage*> pending_message;
+		std::deque<Cmmo::Messages::IMessage*> pending_message;
 
-		std::deque<Bmmo::IMessage*> gotten_msg;
+		std::deque<Cmmo::Messages::IMessage*> gotten_msg;
 		std::deque<CelestiaGnosis*> success_connection;
 
 		while (!mStopBroadcast.load()) {
@@ -89,7 +89,7 @@ namespace WhispersAbyss {
 
 			// destroy all pending msg and clean it
 			while (pending_message.begin() != pending_message.end()) {
-				Bmmo::IMessage* msg = *pending_message.begin();
+				Cmmo::Messages::IMessage* msg = *pending_message.begin();
 				pending_message.pop_front();
 				delete msg;
 			}
@@ -157,7 +157,7 @@ namespace WhispersAbyss {
 
 			// destroy all pending msg
 			while (pending_message.begin() != pending_message.end()) {
-				Bmmo::IMessage* msg = *pending_message.begin();
+				Cmmo::Messages::IMessage* msg = *pending_message.begin();
 				pending_message.pop_front();
 				delete msg;
 			}

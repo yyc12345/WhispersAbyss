@@ -2,6 +2,7 @@
 
 #include "output_helper.hpp"
 #include <atomic>
+#include "bmmo_message.hpp"
 
 namespace WhispersAbyss {
 
@@ -15,6 +16,9 @@ namespace WhispersAbyss {
 		void Start();
 		void Stop();
 	private:
+		OutputHelper* mOutput;
+
+		Bmmo::Messages::IMessage* CreateMessageFromStream(std::stringstream* data);
 
 	};
 

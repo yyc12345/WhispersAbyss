@@ -5,7 +5,7 @@
 #include "output_helper.hpp"
 #include <atomic>
 #include <deque>
-#include "bmmo_message.hpp"
+#include "cmmo_message.hpp"
 #include "celestia_gnosis.hpp"
 
 namespace WhispersAbyss {
@@ -20,8 +20,8 @@ namespace WhispersAbyss {
 		void Start();
 		void Stop();
 
-		void Send(std::deque<Bmmo::IMessage*>* manager_list);
-		void Recv(std::deque<Bmmo::IMessage*>* manager_list);
+		void Send(std::deque<Cmmo::Messages::IMessage*>* manager_list);
+		void Recv(std::deque<Cmmo::Messages::IMessage*>* manager_list);
 	private:
 		uint64_t mIndexDistributor;
 		OutputHelper* mOutput;
@@ -32,7 +32,7 @@ namespace WhispersAbyss {
 		std::thread mTdCtx, mTdBroadcast;
 
 		std::mutex mRecvMsgMutex, mSendMsgMutex, mConnectionsMutex;
-		std::deque<Bmmo::IMessage*> mRecvMsg, mSendMsg;
+		std::deque<Cmmo::Messages::IMessage*> mRecvMsg, mSendMsg;
 		std::deque<CelestiaGnosis*> mConnections;
 
 		void BroadcastWorker();

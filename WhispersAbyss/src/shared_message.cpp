@@ -3,6 +3,13 @@
 namespace WhispersAbyss {
 	namespace SharedMMO {
 
+		uint32_t WhispersAbyss::SharedMMO::IMessage::peekInternalType(std::stringstream* data) {
+			uint32_t code = 0;
+			data->read((char*)&code, sizeof(uint32_t));
+			data->seekg(-(int32_t)(sizeof(uint32_t)), std::ios_base::cur);
+			return code;
+		}
+
 		bool IMessage::inOpCode(std::stringstream* data) {
 			uint32_t c = 0;
 			SSTREAM_RD_STRUCT(data, uint32_t, c);
@@ -33,14 +40,6 @@ namespace WhispersAbyss {
 			data->write(strl->c_str(), length);
 
 			return true;
-		}
-
-		Bmmo::Messages::IMessage* Cmmo2BmmoMsg(Cmmo::Messages::IMessage* msg) {
-			return nullptr;
-		}
-
-		Cmmo::Messages::IMessage* Bmmo2CmmoMsg(Bmmo::Messages::IMessage* msg) {
-			return nullptr;
 		}
 
 	}
