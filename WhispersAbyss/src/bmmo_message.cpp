@@ -474,12 +474,12 @@ namespace WhispersAbyss {
 				SSTREAM_PRE_WR(data);
 				SSTREAM_WR_FUNCTION(data, Bmmo::Messages::IMessage::Serialize(data));
 
-				SSTREAM_WR_STRING(data, mNickname);
 				SSTREAM_WR_STRUCT(data, uint8_t, mVersion.mMajor);
 				SSTREAM_WR_STRUCT(data, uint8_t, mVersion.mMinor);
 				SSTREAM_WR_STRUCT(data, uint8_t, mVersion.mSubminor);
 				SSTREAM_WR_STRUCT(data, uint8_t, mVersion.mStage);
 				SSTREAM_WR_STRUCT(data, uint8_t, mVersion.mBuild);
+				SSTREAM_WR_STRING(data, mNickname);
 				SSTREAM_WR_STRUCT(data, uint8_t, mCheated);
 
 				SSTREAM_END_WR(data);
@@ -489,12 +489,12 @@ namespace WhispersAbyss {
 				SSTREAM_PRE_RD(data);
 				SSTREAM_RD_FUNCTION(data, Bmmo::Messages::IMessage::Deserialize(data));
 
-				SSTREAM_RD_STRING(data, mNickname);
 				SSTREAM_RD_STRUCT(data, uint8_t, mVersion.mMajor);
 				SSTREAM_RD_STRUCT(data, uint8_t, mVersion.mMinor);
 				SSTREAM_RD_STRUCT(data, uint8_t, mVersion.mSubminor);
 				SSTREAM_RD_STRUCT(data, uint8_t, mVersion.mStage);
 				SSTREAM_RD_STRUCT(data, uint8_t, mVersion.mBuild);
+				SSTREAM_RD_STRING(data, mNickname);
 				SSTREAM_RD_STRUCT(data, uint8_t, mCheated);
 
 				SSTREAM_END_RD(data);

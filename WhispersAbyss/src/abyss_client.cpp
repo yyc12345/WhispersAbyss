@@ -404,11 +404,11 @@ namespace WhispersAbyss {
 				auto verfy_msg = new Bmmo::Messages::LoginRequestV2();
 				verfy_msg->mNickname = mUsername.c_str();
 				verfy_msg->mVersion.mMajor = 3;
-				verfy_msg->mVersion.mMinor = 1;
+				verfy_msg->mVersion.mMinor = 2;
 				verfy_msg->mVersion.mSubminor = 2;
 				verfy_msg->mVersion.mStage = Bmmo::PluginStage::Alpha;
-				verfy_msg->mVersion.mBuild = 114;
-				verfy_msg->mCheated = 0;
+				verfy_msg->mVersion.mBuild = 8;
+				verfy_msg->mCheated = 1;
 
 				Send(verfy_msg);
 				break;
