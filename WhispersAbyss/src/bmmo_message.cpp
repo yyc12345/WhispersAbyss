@@ -26,6 +26,11 @@ namespace WhispersAbyss {
 			obj->mCheated = this->mCheated;
 		}
 
+		//WhispersAbyss::Bmmo::PluginVersion::PluginVersion() :
+		//	mMajor(3), mMinor(1), mSubminor(2), mStage(PluginStage::Alpha), mBuild(114)
+		//{
+		//	;
+		//}
 		void WhispersAbyss::Bmmo::PluginVersion::CopyTo(PluginVersion* obj) {
 			obj->mMajor = this->mMajor;
 			obj->mMinor = this->mMinor;
@@ -38,7 +43,10 @@ namespace WhispersAbyss {
 
 		namespace Messages {
 
-			IMessage::IMessage() { mInternalType = (uint32_t)OpCode::None; }
+			IMessage::IMessage() {
+				mInternalType = (uint32_t)OpCode::None;
+				mMessageSendFlag = k_nSteamNetworkingSend_Reliable;
+			}
 			IMessage::~IMessage() {}
 			bool IMessage::Serialize(std::stringstream* data) {
 				SSTREAM_PRE_WR(data);
@@ -56,6 +64,9 @@ namespace WhispersAbyss {
 			OpCode IMessage::GetOpCode() {
 				return (OpCode)mInternalType;
 			}
+			int IMessage::GetMessageSendFlag() {
+				return mMessageSendFlag;
+			}
 			OpCode IMessage::PeekOpCode(std::stringstream* data) {
 				return (OpCode)peekInternalType(data);
 			}
@@ -64,7 +75,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			BallState::BallState() { mInternalType = (uint32_t)OpCode::BallState; }
+			BallState::BallState() {
+				mInternalType = (uint32_t)OpCode::BallState;
+				mMessageSendFlag = k_nSteamNetworkingSend_UnreliableNoNagle;
+			}
 			BallState::~BallState() {}
 			bool BallState::Serialize(std::stringstream* data) {
 				SSTREAM_PRE_WR(data);
@@ -101,7 +115,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			Chat::Chat() { mInternalType = (uint32_t)OpCode::Chat; }
+			Chat::Chat() {
+				mInternalType = (uint32_t)OpCode::Chat;
+				mMessageSendFlag = k_nSteamNetworkingSend_Reliable;
+			}
 			Chat::~Chat() {}
 			bool Chat::Serialize(std::stringstream* data) {
 				SSTREAM_PRE_WR(data);
@@ -132,7 +149,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			CheatState::CheatState() { mInternalType = (uint32_t)OpCode::CheatState; }
+			CheatState::CheatState() {
+				mInternalType = (uint32_t)OpCode::CheatState;
+				mMessageSendFlag = k_nSteamNetworkingSend_Reliable;
+			}
 			CheatState::~CheatState() {}
 			bool CheatState::Serialize(std::stringstream* data) {
 				SSTREAM_PRE_WR(data);
@@ -166,7 +186,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			CheatToggle::CheatToggle() { mInternalType = (uint32_t)OpCode::CheatToggle; }
+			CheatToggle::CheatToggle() {
+				mInternalType = (uint32_t)OpCode::CheatToggle;
+				mMessageSendFlag = k_nSteamNetworkingSend_Reliable;
+			}
 			CheatToggle::~CheatToggle() {}
 			bool CheatToggle::Serialize(std::stringstream* data) {
 				SSTREAM_PRE_WR(data);
@@ -200,7 +223,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			LevelFinish::LevelFinish() { mInternalType = (uint32_t)OpCode::LevelFinish; }
+			LevelFinish::LevelFinish() {
+				mInternalType = (uint32_t)OpCode::LevelFinish;
+				mMessageSendFlag = k_nSteamNetworkingSend_Reliable;
+			}
 			LevelFinish::~LevelFinish() {}
 			bool LevelFinish::Serialize(std::stringstream* data) {
 				SSTREAM_PRE_WR(data);
@@ -259,7 +285,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			LoginAccepted::LoginAccepted() { mInternalType = (uint32_t)OpCode::LoginAccepted; }
+			LoginAccepted::LoginAccepted() {
+				mInternalType = (uint32_t)OpCode::LoginAccepted;
+				mMessageSendFlag = k_nSteamNetworkingSend_Reliable;
+			}
 			LoginAccepted::~LoginAccepted() {
 				Bmmo::PlayerRegister* ptr = NULL;
 				for (auto it = mOnlinePlayers.begin(); it != mOnlinePlayers.end(); ++it) {
@@ -316,7 +345,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			LoginAcceptedV2::LoginAcceptedV2() { mInternalType = (uint32_t)OpCode::LoginAcceptedV2; }
+			LoginAcceptedV2::LoginAcceptedV2() {
+				mInternalType = (uint32_t)OpCode::LoginAcceptedV2;
+				mMessageSendFlag = k_nSteamNetworkingSend_Reliable;
+			}
 			LoginAcceptedV2::~LoginAcceptedV2() {
 				Bmmo::PlayerRegisterV2* ptr = NULL;
 				for (auto it = mOnlinePlayers.begin(); it != mOnlinePlayers.end(); ++it) {
@@ -334,8 +366,8 @@ namespace WhispersAbyss {
 				SSTREAM_WR_STRUCT(data, uint32_t, veclen);
 				for (auto it = mOnlinePlayers.begin(); it != mOnlinePlayers.end(); ++it) {
 					ptr = (*it);
-					SSTREAM_WR_STRING(data, ptr->mNickname);
 					SSTREAM_WR_STRUCT(data, BMMO_PLAYER_UUID, ptr->mPlayerId);
+					SSTREAM_WR_STRING(data, ptr->mNickname);
 					SSTREAM_WR_STRUCT(data, uint8_t, ptr->mCheated);
 				}
 
@@ -352,8 +384,8 @@ namespace WhispersAbyss {
 				mOnlinePlayers.reserve(veclen);
 				for (uint32_t i = 0; i < veclen; ++i) {
 					ptr = new Bmmo::PlayerRegisterV2();
-					SSTREAM_RD_STRING(data, ptr->mNickname);
 					SSTREAM_RD_STRUCT(data, BMMO_PLAYER_UUID, ptr->mPlayerId);
+					SSTREAM_RD_STRING(data, ptr->mNickname);
 					SSTREAM_RD_STRUCT(data, uint8_t, ptr->mCheated);
 					mOnlinePlayers.push_back(ptr);
 				}
@@ -375,7 +407,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			LoginDenied::LoginDenied() { mInternalType = (uint32_t)OpCode::LoginDenied; }
+			LoginDenied::LoginDenied() {
+				mInternalType = (uint32_t)OpCode::LoginDenied;
+				mMessageSendFlag = k_nSteamNetworkingSend_Reliable;
+			}
 			LoginDenied::~LoginDenied() {}
 			bool LoginDenied::Serialize(std::stringstream* data) {
 				SSTREAM_PRE_WR(data);
@@ -397,7 +432,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			LoginRequest::LoginRequest() { mInternalType = (uint32_t)OpCode::LoginRequest; }
+			LoginRequest::LoginRequest() {
+				mInternalType = (uint32_t)OpCode::LoginRequest;
+				mMessageSendFlag = k_nSteamNetworkingSend_Reliable;
+			}
 			LoginRequest::~LoginRequest() {}
 			bool LoginRequest::Serialize(std::stringstream* data) {
 				SSTREAM_PRE_WR(data);
@@ -427,7 +465,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			LoginRequestV2::LoginRequestV2() { mInternalType = (uint32_t)OpCode::LoginRequestV2; }
+			LoginRequestV2::LoginRequestV2() {
+				mInternalType = (uint32_t)OpCode::LoginRequestV2;
+				mMessageSendFlag = k_nSteamNetworkingSend_Reliable;
+			}
 			LoginRequestV2::~LoginRequestV2() {}
 			bool LoginRequestV2::Serialize(std::stringstream* data) {
 				SSTREAM_PRE_WR(data);
@@ -471,7 +512,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			OwnedBallState::OwnedBallState() { mInternalType = (uint32_t)OpCode::OwnedBallState; }
+			OwnedBallState::OwnedBallState() {
+				mInternalType = (uint32_t)OpCode::OwnedBallState;
+				mMessageSendFlag = k_nSteamNetworkingSend_UnreliableNoNagle;
+			}
 			OwnedBallState::~OwnedBallState() {}
 			bool OwnedBallState::Serialize(std::stringstream* data) {
 				SSTREAM_PRE_WR(data);
@@ -496,7 +540,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			OwnedCheatState::OwnedCheatState() { mInternalType = (uint32_t)OpCode::OwnedCheatState; }
+			OwnedCheatState::OwnedCheatState() {
+				mInternalType = (uint32_t)OpCode::OwnedCheatState;
+				mMessageSendFlag = k_nSteamNetworkingSend_Reliable;
+			}
 			OwnedCheatState::~OwnedCheatState() {}
 			bool OwnedCheatState::Serialize(std::stringstream* data) {
 				SSTREAM_PRE_WR(data);
@@ -521,7 +568,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			OwnedCheatToggle::OwnedCheatToggle() { mInternalType = (uint32_t)OpCode::OwnedCheatToggle; }
+			OwnedCheatToggle::OwnedCheatToggle() {
+				mInternalType = (uint32_t)OpCode::OwnedCheatToggle;
+				mMessageSendFlag = k_nSteamNetworkingSend_Reliable;
+			}
 			OwnedCheatToggle::~OwnedCheatToggle() {}
 			bool OwnedCheatToggle::Serialize(std::stringstream* data) {
 				SSTREAM_PRE_WR(data);
@@ -548,7 +598,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			PlayerConnected::PlayerConnected() { mInternalType = (uint32_t)OpCode::PlayerConnected; }
+			PlayerConnected::PlayerConnected() {
+				mInternalType = (uint32_t)OpCode::PlayerConnected;
+				mMessageSendFlag = k_nSteamNetworkingSend_Reliable;
+			}
 			PlayerConnected::~PlayerConnected() {}
 			bool PlayerConnected::Serialize(std::stringstream* data) {
 				SSTREAM_PRE_WR(data);
@@ -581,7 +634,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			PlayerConnectedV2::PlayerConnectedV2() { mInternalType = (uint32_t)OpCode::PlayerConnectedV2; }
+			PlayerConnectedV2::PlayerConnectedV2() {
+				mInternalType = (uint32_t)OpCode::PlayerConnectedV2;
+				mMessageSendFlag = k_nSteamNetworkingSend_Reliable;
+			}
 			PlayerConnectedV2::~PlayerConnectedV2() {}
 			bool PlayerConnectedV2::Serialize(std::stringstream* data) {
 				SSTREAM_PRE_WR(data);
@@ -617,7 +673,10 @@ namespace WhispersAbyss {
 			// 
 			//---------------------------------------
 
-			PlayerDisconnected::PlayerDisconnected() { mInternalType = (uint32_t)OpCode::PlayerDisconnected; }
+			PlayerDisconnected::PlayerDisconnected() {
+				mInternalType = (uint32_t)OpCode::PlayerDisconnected;
+				mMessageSendFlag = k_nSteamNetworkingSend_Reliable;
+			}
 			PlayerDisconnected::~PlayerDisconnected() {}
 			bool PlayerDisconnected::Serialize(std::stringstream* data) {
 				SSTREAM_PRE_WR(data);

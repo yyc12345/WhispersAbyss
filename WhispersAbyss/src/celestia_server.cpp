@@ -55,7 +55,7 @@ namespace WhispersAbyss {
 		// push data
 		mSendMsgMutex.lock();
 		for (auto it = manager_list->begin(); it != manager_list->end(); ++it) {
-			manager_list->push_back(*it);
+			mSendMsg.push_back(*it);
 			// do not clean manager_list
 		}
 		msg_size = mSendMsg.size();

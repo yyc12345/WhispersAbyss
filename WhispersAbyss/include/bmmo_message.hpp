@@ -42,6 +42,8 @@ namespace WhispersAbyss {
 		};
 		class PluginVersion {
 		public:
+			//PluginVersion();
+
 			uint8_t mMajor;
 			uint8_t mMinor;
 			uint8_t mSubminor;
@@ -107,7 +109,10 @@ namespace WhispersAbyss {
 				virtual bool Deserialize(std::stringstream* data) override;
 				virtual Bmmo::Messages::IMessage* Clone();
 				OpCode GetOpCode();
+				int GetMessageSendFlag();
 				static OpCode PeekOpCode(std::stringstream* data);
+			protected:
+				int mMessageSendFlag;
 			};
 
 			class BallState : public IMessage {

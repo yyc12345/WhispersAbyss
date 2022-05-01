@@ -152,6 +152,7 @@ namespace WhispersAbyss {
 			}
 
 			// get serialized msg and delete msg
+			buffer.str("");
 			buffer.clear();
 			msg->Serialize(&buffer);
 			uint32_t length = buffer.str().size();
@@ -204,6 +205,7 @@ namespace WhispersAbyss {
 			if (!ec) {
 
 				// set for stream
+				mMsgStream.str("");
 				mMsgStream.clear();
 				mMsgStream.write(mMsgBuffer.c_str(), mMsgHeader);
 
@@ -264,6 +266,7 @@ namespace WhispersAbyss {
 	//	if (!ec) {
 	//		
 	//		// set for stream
+	//		mMsgStream.str("");
 	//		mMsgStream.clear();
 	//		mMsgStream << mMsgBuffer.c_str();
 

@@ -182,8 +182,8 @@ namespace WhispersAbyss {
 				SSTREAM_WR_STRUCT(data, uint32_t, veclen);
 				for (auto it = mOnlinePlayers.begin(); it != mOnlinePlayers.end(); ++it) {
 					ptr = (*it);
-					SSTREAM_WR_STRING(data, ptr->mNickname);
 					SSTREAM_WR_STRUCT(data, CMMO_PLAYER_UUID, ptr->mPlayerId);
+					SSTREAM_WR_STRING(data, ptr->mNickname);
 					SSTREAM_WR_STRUCT(data, uint8_t, ptr->mCheated);
 				}
 
@@ -200,8 +200,8 @@ namespace WhispersAbyss {
 				mOnlinePlayers.reserve(veclen);
 				for (uint32_t i = 0; i < veclen; ++i) {
 					ptr = new PlayerEntity();
-					SSTREAM_RD_STRING(data, ptr->mNickname);
 					SSTREAM_RD_STRUCT(data, CMMO_PLAYER_UUID, ptr->mPlayerId);
+					SSTREAM_RD_STRING(data, ptr->mNickname);
 					SSTREAM_RD_STRUCT(data, uint8_t, ptr->mCheated);
 					mOnlinePlayers.push_back(ptr);
 				}
