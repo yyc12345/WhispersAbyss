@@ -28,7 +28,7 @@ void MainWorker(
 		// check exit
 		if (signalStop.load()) break;
 		if (client.mIsDead.load()) {
-			output.Printf("Abyss Client is dead. Stop converter.");
+			output.Printf("Abyss Client is dead. Stop worker.");
 			break;
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -51,11 +51,11 @@ void MainWorker(
 
 	output.Printf("Stoping server & client...");
 	server.Stop();
-	client.Stop();
-	while (server.mIsRunning.load());
 	output.Printf("Celestia Server stoped.");
-	while (client.mIsRunning.load());
+	client.Stop();
 	output.Printf("Abyss Client stoped.");
+	//while (server.mIsRunning.load());
+	//while (client.mIsRunning.load());
 }
 
 int main(int argc, char* argv[]) {

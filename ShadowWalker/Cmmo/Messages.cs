@@ -45,7 +45,7 @@ namespace ShadowWalker.Cmmo.Messages {
     }
 
     public class Chat : OrderChat {
-        UInt32 mPlayerId;
+        public UInt32 mPlayerId;
         public Chat() { mInternalOpCode = OpCode.SC_Chat; }
         public override bool Deserialize(StringStream data) {
             if (!base.Deserialize(data)) return false;
@@ -79,7 +79,7 @@ namespace ShadowWalker.Cmmo.Messages {
     }
 
     public class GlobalCheat : OrderGlobalCheat {
-        UInt32 mPlayerId;
+        public UInt32 mPlayerId;
         public GlobalCheat() { mInternalOpCode = OpCode.SC_GlobalCheat; }
         public override bool Deserialize(StringStream data) {
             if (!base.Deserialize(data)) return false;
@@ -110,7 +110,7 @@ namespace ShadowWalker.Cmmo.Messages {
     }
 
     public class ClientList : OrderClientList {
-        List<PlayerEntity> mOnlinePlayers = new List<PlayerEntity>();
+        public List<PlayerEntity> mOnlinePlayers = new List<PlayerEntity>();
         public ClientList() { mInternalOpCode = OpCode.SC_ClientList; }
         public override bool Deserialize(StringStream data) {
             if (!base.Deserialize(data)) return false;
@@ -152,10 +152,10 @@ namespace ShadowWalker.Cmmo.Messages {
 
 
     public class BallState : IMessage {
-        UInt32 mPlayerId;
-        UInt32 mType;
-        VxVector mPosition = new VxVector();
-        VxQuaternion mRotation = new VxQuaternion();
+        public UInt32 mPlayerId;
+        public UInt32 mType;
+        public VxVector mPosition = new VxVector();
+        public VxQuaternion mRotation = new VxQuaternion();
         public BallState() { mInternalOpCode = OpCode.SC_BallState; }
         public override bool Deserialize(StringStream data) {
             if (!base.Deserialize(data)) return false;
@@ -198,7 +198,7 @@ namespace ShadowWalker.Cmmo.Messages {
     //---------------------------------------
 
     public class ClientConnected : IMessage {
-        PlayerEntity mPlayer = new PlayerEntity();
+        public PlayerEntity mPlayer = new PlayerEntity();
         public ClientConnected() { mInternalOpCode = OpCode.SC_ClientConnected; }
         public override bool Deserialize(StringStream data) {
             if (!base.Deserialize(data)) return false;
@@ -225,7 +225,7 @@ namespace ShadowWalker.Cmmo.Messages {
     //---------------------------------------
 
     public class ClientDisconnected : IMessage {
-        UInt32 mPlayerId;
+        public UInt32 mPlayerId;
         public ClientDisconnected() { mInternalOpCode = OpCode.SC_ClientDisconnected; }
         public override bool Deserialize(StringStream data) {
             if (!base.Deserialize(data)) return false;
@@ -243,10 +243,10 @@ namespace ShadowWalker.Cmmo.Messages {
     // 
     //---------------------------------------
 
-    public class ClientCheatState : IMessage {
-        UInt32 mPlayerId;
-        byte mCheated;
-        public ClientCheatState() { mInternalOpCode = OpCode.SC_CheatState; }
+    public class CheatState : IMessage {
+        public UInt32 mPlayerId;
+        public byte mCheated;
+        public CheatState() { mInternalOpCode = OpCode.SC_CheatState; }
         public override bool Deserialize(StringStream data) {
             if (!base.Deserialize(data)) return false;
 
@@ -270,11 +270,11 @@ namespace ShadowWalker.Cmmo.Messages {
     //---------------------------------------
 
     public class LevelFinish : IMessage {
-        UInt32 mPlayerId;
-        int mPoints, mLifes, mLifeBouns, mLevelBouns;
-        float mTimeElapsed;
-        int mStartPoints, mCurrentLevel;
-        byte mCheated;
+        public UInt32 mPlayerId;
+        public int mPoints, mLifes, mLifeBouns, mLevelBouns;
+        public float mTimeElapsed;
+        public int mStartPoints, mCurrentLevel;
+        public byte mCheated;
         public LevelFinish() { mInternalOpCode = OpCode.SC_LevelFinish; }
         public override bool Deserialize(StringStream data) {
             if (!base.Deserialize(data)) return false;

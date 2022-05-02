@@ -117,6 +117,10 @@ namespace ShadowWalker.Kernel {
                 mOutputHelper.Printf($"Connecting {mServerAddress}:{mPort} ...");
                 mSocket.Connect(mServerAddress, mPort);
                 mOutputHelper.Printf($"Server {mServerAddress}:{mPort} connected.");
+
+                // order client first
+                var player_list_request = new Cmmo.Messages.OrderClientList();
+                Send(player_list_request);
             } catch (Exception e) {
                 mOutputHelper.FatalError($"Fail to connect. Reason {e.Message}");
             }
