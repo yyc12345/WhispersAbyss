@@ -1,6 +1,10 @@
 ## my ban
 WhispersAbyss/out/
 
+WhispersAbyss/protobuf_src/*.h
+WhispersAbyss/protobuf_src/*.cc
+ShadowWalker/ProtobufSrc/*.cs
+
 ## Cmake
 
 CMakeLists.txt.user

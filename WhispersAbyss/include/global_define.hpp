@@ -1,5 +1,5 @@
 #pragma once
 
-#define NUKE_CAPACITY 3096
+#define NUKE_CAPACITY 3072
 #define WARNING_CAPACITY 2048
 #define STEAM_MSG_CAPACITY 2048

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="ProtobufSrc\Cmmo.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Cmmo\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="ProtobufSrc\Cmmo.cs" />
+  </ItemGroup>
+
+</Project>

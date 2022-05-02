@@ -185,8 +185,8 @@ namespace WhispersAbyss {
 			// recv header
 			asio::read(mSocket, asio::buffer(&mMsgHeader, sizeof(uint32_t)), ec);
 			if (!ec) {
-				if (mMsgHeader >= MAX_MSG_SIZE || mMsgHeader <= 0) {
-					mOutput->Printf("[Gnosis-#%ld] Header exceed MAX_MSG_SIZE or lower than 0.", mIndex);
+				if (mMsgHeader >= MAX_MSG_SIZE) {
+					mOutput->Printf("[Gnosis-#%ld] Header exceed MAX_MSG_SIZE.", mIndex);
 					mSocket.close();
 					return;
 				} else {

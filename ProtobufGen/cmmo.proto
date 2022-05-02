@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package WhispersAbyss.Cmmo.Messages;
+
+option csharp_namespace = "ShadowWalker.Cmmo.Messages";
+
+// ======= pre-defined structure
+message _playerEntity {
+    uint32 player_id = 1;
+    string nickname = 2;
+    bool cheated = 3;
+}
+message _vxPosition {
+    float x = 1;
+    float y = 2;
+    float z = 3;
+}
+message _vxQuaternion {
+    float x = 1;
+    float y = 2;
+    float z = 3;
+    float w = 4;
+}
+
+// ======= core message
+
+message None {
+
+}
+
+message OrderChat {
+    string chat_content = 1;
+}
+message Chat {
+    OrderChat client_payload = 1;
+    uint32 player_id = 2;
+}
+
+message OrderGlobalCheat {
+    bool cheated = 1;
+}
+message GlobalCheat {
+    OrderGlobalCheat client_payload = 1;
+    uint32 player_id = 2;
+}
+
+message OrderClientList {
+
+}
+message ClientList {
+    OrderClientList client_payload = 1;
+    repeated _playerEntity online_players = 2;
+}
+
+message BallState {
+    uint32 ball_type = 1;
+    _vxPosition ball_pos = 2;
+    _vxQuaternion ball_rot = 3;
+}
+
+message ClientConnected {
+    _playerEntity player = 1;
+}
+
+message ClientDisconnected {
+    uint32 player_id = 1;
+}
+
+message CheatState {
+    uint32 player_id = 1;
+    bool cheated = 2;
+}
+
+message LevelFinish {
+
+    int32 points = 1;
+    int32 lifes = 2;
+    int32 life_bouns = 3;
+    int32 level_bouns = 4;
+    float time_elpased = 5;
+    int32 start_points = 6;
+    int32 current_level = 7;
+    bool cheated = 8;
+    uint32 player_id = 9;
+
+}
