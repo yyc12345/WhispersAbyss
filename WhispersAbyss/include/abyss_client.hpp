@@ -9,56 +9,56 @@
 #include "bmmo_message.hpp"
 #include <steam/steamnetworkingtypes.h>
 #include <steam/isteamnetworkingsockets.h>
-#include "../include/global_define.hpp"
+#include "global_define.hpp"
 
 namespace WhispersAbyss {
 
 
 	class AbyssClient {
 	public:
-		std::atomic_bool mIsRunning, mIsDead;
+		std::atomic<ModuleStatus> mStatus;
 
-		AbyssClient(OutputHelper* output, const char* server, const char* username);
+		AbyssClient(OutputHelper* output, const char* server);
 		~AbyssClient();
 
-		void Start();
+		static ISteamNetworkingSockets* smSteamSockets;
+		static uint64_t smIndexDistributor;
+		static void Init(OutputHelper* output);
+		static void Dispose();
+
 		void Stop();
+		void Send(std::deque<Bmmo::Message*>* manager_list);
+		void Recv(std::deque<Bmmo::Message*>* manager_list);
 
-		void Send(std::deque<Bmmo::Messages::IMessage*>* manager_list);
-		void Recv(std::deque<Bmmo::Messages::IMessage*>* manager_list);
-
-		void HandleSteamDebugOutput(ESteamNetworkingSocketsDebugOutputType eType, const char* pszMsg);
 		void HandleSteamConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* pInfo);
-	private:
-		void Send(Bmmo::Messages::IMessage* single_msg);
 
+	private:
+		uint64_t mIndex;
 		OutputHelper* mOutput;
 		std::mutex mRecvMsgMutex, mSendMsgMutex;
-		std::deque<Bmmo::Messages::IMessage*> mRecvMsg, mSendMsg;
-		std::string mServerUrl, mUsername;
-		std::thread mTdCtx, mTdConnect;
+		std::deque<Bmmo::Message*> mRecvMsg, mSendMsg;
+		std::string mServerUrl;
+		std::thread mTdCtx, mTdConnect, mTdStop;
 		std::atomic_bool mStopCtx;
-		Bmmo::Messages::IMessage* CreateMessageFromStream(std::stringstream* data);
-		void InternalMsgProc(Bmmo::Messages::IMessage* msg);
 		void ConnectWorker();
+		void StopWorker();
 		void CtxWorker();
 
-		ISteamNetworkingSockets* mSteamSockets;
+
 		std::mutex mSteamMutex;
 		HSteamNetConnection mSteamConnection;
 		ISteamNetworkingMessage* mSteamMessages[STEAM_MSG_CAPACITY];
-		std::stringstream mSteamBuffer;
+		std::string mSteamBuffer;
 		bool ConnectSteam(std::string* addrs);
-		void RecvSteam(std::deque<Bmmo::Messages::IMessage*>* msg_list);
-		void SendSteam(Bmmo::Messages::IMessage* msg);
+		void RecvSteam(std::deque<Bmmo::Message*>* msg_list);
+		void SendSteam(Bmmo::Message* msg);
 		void DisconnectSteam();
 	};
 
 	namespace FuckValve {
 
-		extern std::mutex LockAbyssClientSingleton;
-		extern AbyssClient* AbyssClientSingleton;
-
+		void RegisterClient(HSteamNetConnection conn, AbyssClient* instance);
+		void UnregisterClient(HSteamNetConnection conn);
 		void ProcSteamDebugOutput(ESteamNetworkingSocketsDebugOutputType eType, const char* pszMsg);
 		void ProcSteamConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* pInfo);
 

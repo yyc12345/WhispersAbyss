@@ -1,3 +1,2 @@
 @echo off
-protoc -I=./ --cpp_out=../WhispersAbyss/protobuf_src --csharp_out=../ShadowWalker/Protobuf  cmmo.proto
-pause
+bmmo_protocol_compiler.exe bmmo.bp ../ShadowWalker/BmmoProto.py

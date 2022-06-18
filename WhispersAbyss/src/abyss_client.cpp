@@ -5,73 +5,92 @@
 
 namespace WhispersAbyss {
 
-	AbyssClient::AbyssClient(OutputHelper* output, const char* server, const char* username) :
-		mIsRunning(false), mIsDead(false), mOutput(output),
+	// init static variables
+	ISteamNetworkingSockets* AbyssClient::smSteamSockets = NULL;
+	uint64_t AbyssClient::smIndexDistributor = 0;
+
+	AbyssClient::AbyssClient(OutputHelper* output, const char* server) :
+		mIndex(smIndexDistributor++),
+
+		mStatus(ModuleStatus::Initializing), mStopCtx(false),
+		
+		mOutput(output),
 		mRecvMsg(), mSendMsg(),
-		mRecvMsgMutex(), mSendMsgMutex(), mSteamMutex(),
-		mSteamSockets(NULL), mSteamConnection(k_HSteamNetConnection_Invalid), mSteamBuffer(),
-		mUsername(username), mServerUrl(server),
-		mStopCtx(false),
-		mTdCtx(), mTdConnect() {
-		// allocate fuck valve
-		FuckValve::LockAbyssClientSingleton.lock();
-		if (FuckValve::AbyssClientSingleton != NULL) {
-			mOutput->FatalError("[Abyss] Fail to fuck Valve.");
-		}
-		FuckValve::AbyssClientSingleton = this;
-		FuckValve::LockAbyssClientSingleton.unlock();
+		mRecvMsgMutex(), mSendMsgMutex(), 
+		
+		mSteamMutex(),
+		mSteamConnection(k_HSteamNetConnection_Invalid), mSteamBuffer(),
+
+		mServerUrl(server),
+		mTdCtx(), mTdConnect(), mTdStop() {
+
+		// check requirements
+		if (smSteamSockets == NULL) throw std::logic_error("Call constructor of AbyssClient before AbyssClient::Init.");
+
+		// when creating instance, we should connect server immediately
+		// start connect worker and notify main worker
+		mStopCtx.store(false);
+		mStatus.store(ModuleStatus::Ready);
+		mTdCtx = std::thread(&AbyssClient::CtxWorker, this);
+		mTdConnect = std::thread(&AbyssClient::ConnectWorker, this);
+
+		mOutput->Printf("[Abyss-#%ld] Connection instance created.", mIndex);
+	}
+
+	AbyssClient::~AbyssClient() {
+		Bmmo::DeleteCachedMessage(&mRecvMsg);
+		Bmmo::DeleteCachedMessage(&mSendMsg);
+
+		mOutput->Printf("[Abyss-#%ld] Connection instance disposed.", mIndex);
+	}
+
+	void AbyssClient::Init(OutputHelper* output) {
+		if (smSteamSockets != NULL) throw std::logic_error("Wrong call of AbyssClient::Init.");
+
+		// setup fuck valve output
+		FuckValve::LockValveOutput.lock();
+		FuckValve::ValveOutput = output;
+		FuckValve::LockValveOutput.unlock();
 
 		// initialize steam lib
 		SteamDatagramErrMsg err_msg;
 		if (!GameNetworkingSockets_Init(nullptr, err_msg))
-			mOutput->FatalError("GameNetworkingSockets_Init failed.  %s", err_msg);
+			output->FatalError("[Abyss] GameNetworkingSockets_Init failed.  %s", err_msg);
 		SteamNetworkingUtils()->SetDebugOutputFunction(
 			k_ESteamNetworkingSocketsDebugOutputType_Msg,
 			&FuckValve::ProcSteamDebugOutput
 		);
-		mSteamSockets = SteamNetworkingSockets();
+		smSteamSockets = SteamNetworkingSockets();
+
+		FuckValve::ValveOutput->Printf("[Abyss] GameNetworkingSockets_Init done.");
 	}
 
-	AbyssClient::~AbyssClient() {
+	void AbyssClient::Dispose() {
+		if (smSteamSockets == NULL) throw std::logic_error("Wrong call of AbyssClient::Dispose.");
+
+		// fuck valve output do not need to be removed
+		// this operation is useless
+
 		// destroy steam work
 		std::this_thread::sleep_for(std::chrono::milliseconds(500));
 		GameNetworkingSockets_Kill();
 
-		// release fuck valve
-		FuckValve::LockAbyssClientSingleton.lock();
-		FuckValve::AbyssClientSingleton = NULL;
-		FuckValve::LockAbyssClientSingleton.unlock();
-	}
-
-	void AbyssClient::Start() {
-
-		mStopCtx.store(false);
-
-		// start connect worker
-		mTdCtx = std::thread(&AbyssClient::CtxWorker, this);
-		mTdConnect = std::thread(&AbyssClient::ConnectWorker, this);
-
-		// notify main worker
-		mIsRunning.store(true);
+		FuckValve::ValveOutput->Printf("[Abyss] GameNetworkingSockets_Kill done.");
 	}
 
 	void AbyssClient::Stop() {
+		// check requirement
+		
+		auto status = mStatus.load();
+		if (status == ModuleStatus::Stopping || status == ModuleStatus::Stopped) return;
+		mStatus.store(ModuleStatus::Stopping);
 
-		DisconnectSteam();
-		mStopCtx.store(true);
-
-		if (mTdCtx.joinable())
-			mTdCtx.join();
-		if (mTdConnect.joinable())
-			mTdConnect.join();
-
-		// notify main worker
-		mIsRunning.store(false);
+		// start stop worker
+		mTdStop = std::thread(&AbyssClient::StopWorker, this);
 	}
 
 	void AbyssClient::CtxWorker() {
-		std::deque<Bmmo::Messages::IMessage*> incoming_message, outbound_message;
-		std::stringstream msg_stream;
+		std::deque<Bmmo::Message*> incoming_message, outbound_message;
 
 		while (!mStopCtx.load()) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -81,21 +100,14 @@ namespace WhispersAbyss {
 			// ready msg cache
 			incoming_message.clear();
 			RecvSteam(&incoming_message);
-			// proc msg internally first
-			for (auto it = incoming_message.begin(); it != incoming_message.end(); ++it) {
-				InternalMsgProc(*it);
-			}
-			// after all messaged processed, push cache into list
+			// push cache into list
 			mRecvMsgMutex.lock();
-			while (incoming_message.begin() != incoming_message.end()) {
-				mRecvMsg.push_back(*incoming_message.begin());
-				incoming_message.pop_front();
-			}
+			Bmmo::MoveCachedMessage(&incoming_message, &mRecvMsg);
 			mRecvMsgMutex.unlock();
 
 			// ==================================
 			// poll status change
-			mSteamSockets->RunCallbacks();
+			smSteamSockets->RunCallbacks();
 
 			// ==================================
 			// process outbound message
@@ -109,9 +121,8 @@ namespace WhispersAbyss {
 			// and send them
 			while (outbound_message.begin() != outbound_message.end()) {
 				auto msg = *outbound_message.begin();
-				SendSteam(msg);
-				delete msg;
 				outbound_message.pop_front();
+				SendSteam(msg);
 			}
 
 		}
@@ -124,7 +135,7 @@ namespace WhispersAbyss {
 		std::string port = mServerUrl.substr(urlpos + 1);
 
 		// solve ip
-		mOutput->Printf("[Abyss] Resolving server address \"%s : %s\"", address.c_str(), port.c_str());
+		mOutput->Printf("[Abyss-#%ld] Resolving server address \"%s : %s\"", mIndex, address.c_str(), port.c_str());
 		asio::io_context ioContext;
 		asio::ip::udp::resolver udpResolver(ioContext);
 		asio::error_code ec;
@@ -133,169 +144,109 @@ namespace WhispersAbyss {
 			for (const auto& i : results) {
 				auto endpoint = i.endpoint();
 				std::string connection_string = endpoint.address().to_string() + ":" + std::to_string(endpoint.port());
-				mOutput->Printf("[Abyss] Trying %s...", connection_string.c_str());
+				mOutput->Printf("[Abyss-#%ld] Trying %s...", mIndex, connection_string.c_str());
 				if (ConnectSteam(&connection_string)) {
+					mStatus.store(ModuleStatus::Running);
 					break;	// success
 				}
 			}
 		} else {
-			mOutput->Printf("[Abyss] Fail to resolve hostname.");
+			mOutput->Printf("[Abyss-#%ld] Fail to resolve hostname.", mIndex);
 		}
 
 		ioContext.stop();
 	}
 
-	void AbyssClient::Send(std::deque<Bmmo::Messages::IMessage*>* manager_list) {
+	void AbyssClient::StopWorker() {
+		// stop steam interface and ctx worker
+		DisconnectSteam();
+		mStopCtx.store(true);
+
+		// wait exit
+		if (mTdCtx.joinable())
+			mTdCtx.join();
+		if (mTdConnect.joinable())
+			mTdConnect.join();
+
+		mStatus.store(ModuleStatus::Stopped);
+	}
+
+	void AbyssClient::Send(std::deque<Bmmo::Message*>* manager_list) {
 		size_t msg_size;
 
 		// push data
 		mSendMsgMutex.lock();
-		for (auto it = manager_list->begin(); it != manager_list->end(); ++it) {
-			mSendMsg.push_back(*it);
-			// do not clean manager_list
-		}
+		Bmmo::MoveCachedMessage(manager_list, &mSendMsg);
 		msg_size = mSendMsg.size();
 		mSendMsgMutex.unlock();
 
 		if (msg_size >= WARNING_CAPACITY)
-			mOutput->Printf("[Abyss] Message list reach warning level: %d", msg_size);
+			mOutput->Printf("[Abyss-#%ld] Message list reach warning level: %d", mIndex, msg_size);
 		if (msg_size >= NUKE_CAPACITY) {
-			mOutput->FatalError("[Abyss] Message list reach nuke level: %d. The program will be nuked!!!", msg_size);
+			mOutput->FatalError("[Abyss-#%ld] Message list reach nuke level: %d. This abyss will be nuked!!!", mIndex, msg_size);
 		}
-	}
-	void WhispersAbyss::AbyssClient::Send(Bmmo::Messages::IMessage* single_msg) {
-		mSendMsgMutex.lock();
-		mSendMsg.push_back(single_msg);
-		mSendMsgMutex.unlock();
 	}
 
-	void AbyssClient::Recv(std::deque<Bmmo::Messages::IMessage*>* manager_list) {
+	void AbyssClient::Recv(std::deque<Bmmo::Message*>* manager_list) {
 		mRecvMsgMutex.lock();
-		while (mRecvMsg.begin() != mRecvMsg.end()) {
-			manager_list->push_back(*mRecvMsg.begin());
-			mRecvMsg.pop_front();
-		}
+		Bmmo::MoveCachedMessage(&mRecvMsg, manager_list);
 		mRecvMsgMutex.unlock();
 	}
 
-	Bmmo::Messages::IMessage* AbyssClient::CreateMessageFromStream(std::stringstream* data) {
-		// peek opcode
-		Bmmo::OpCode code = Bmmo::Messages::IMessage::PeekOpCode(data);
+	void AbyssClient::HandleSteamConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* pInfo) {
+		auto state = pInfo->m_info.m_eState;
 
-		// check format
-		Bmmo::Messages::IMessage* msg = NULL;
-		switch (code) {
-			case WhispersAbyss::Bmmo::OpCode::LoginRequest:
-				msg = new Bmmo::Messages::LoginRequest();
+		switch (state) {
+			case k_ESteamNetworkingConnectionState_Connecting:
+			{
+				mOutput->Printf("[Abyss-#%ld] Connecting...", mIndex);
 				break;
-			case WhispersAbyss::Bmmo::OpCode::LoginAccepted:
-				msg = new Bmmo::Messages::LoginAccepted();
+			}
+			case k_ESteamNetworkingConnectionState_Connected:
+			{
+				mOutput->Printf("[Abyss-#%ld] Connected.", mIndex);
 				break;
-			case WhispersAbyss::Bmmo::OpCode::LoginDenied:
-				msg = new Bmmo::Messages::LoginDenied();
-				break;
-			case WhispersAbyss::Bmmo::OpCode::PlayerDisconnected:
-				msg = new Bmmo::Messages::PlayerDisconnected();
-				break;
-			case WhispersAbyss::Bmmo::OpCode::PlayerConnected:
-				msg = new Bmmo::Messages::PlayerConnected();
-				break;
-			case WhispersAbyss::Bmmo::OpCode::BallState:
-				msg = new Bmmo::Messages::BallState();
-				break;
-			case WhispersAbyss::Bmmo::OpCode::OwnedBallState:
-				msg = new Bmmo::Messages::OwnedBallState();
-				break;
-			case WhispersAbyss::Bmmo::OpCode::Chat:
-				msg = new Bmmo::Messages::Chat();
-				break;
-			case WhispersAbyss::Bmmo::OpCode::LevelFinish:
-				msg = new Bmmo::Messages::LevelFinish();
-				break;
-			case WhispersAbyss::Bmmo::OpCode::LoginRequestV2:
-				msg = new Bmmo::Messages::LoginRequestV2();
-				break;
-			case WhispersAbyss::Bmmo::OpCode::LoginAcceptedV2:
-				msg = new Bmmo::Messages::LoginAcceptedV2();
-				break;
-			case WhispersAbyss::Bmmo::OpCode::PlayerConnectedV2:
-				msg = new Bmmo::Messages::PlayerConnectedV2();
-				break;
-			case WhispersAbyss::Bmmo::OpCode::CheatState:
-				msg = new Bmmo::Messages::CheatState();
-				break;
-			case WhispersAbyss::Bmmo::OpCode::OwnedCheatState:
-				msg = new Bmmo::Messages::OwnedCheatState();
-				break;
-			case WhispersAbyss::Bmmo::OpCode::CheatToggle:
-				msg = new Bmmo::Messages::CheatToggle();
-				break;
-			case WhispersAbyss::Bmmo::OpCode::OwnedCheatToggle:
-				msg = new Bmmo::Messages::OwnedCheatToggle();
-				break;
-			case WhispersAbyss::Bmmo::OpCode::KeyboardInput:
-			case WhispersAbyss::Bmmo::OpCode::Ping:
-			case WhispersAbyss::Bmmo::OpCode::None:
-				mOutput->Printf("[Abyss] Invalid OpCode %d.", code);
-				break;
-			default:
-				mOutput->Printf("[Abyss] Unknow OpCode %d.", code);
-				break;
-		}
+			}
+			case k_ESteamNetworkingConnectionState_ClosedByPeer:
+			{
+				mOutput->Printf("[Abyss-#%ld] Connection Lost. Reason %s(%d)",
+					mIndex,
+					pInfo->m_info.m_szEndDebug,
+					pInfo->m_info.m_eEndReason);
 
-		if (msg != NULL) {
-			if (!msg->Deserialize(data)) {
-				mOutput->Printf("[Abyss] Fail to parse message with OpCode %d.", code);
-				delete msg;
-				msg = NULL;
+				// actively stop
+				Stop();
+				break;
 			}
-		}
-		return msg;
-	}
+			case k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
+			{
+				mOutput->Printf("[Abyss-#%ld] Local Error. Reason %s(%d)",
+					mIndex,
+					pInfo->m_info.m_szEndDebug,
+					pInfo->m_info.m_eEndReason);
 
-	void WhispersAbyss::AbyssClient::InternalMsgProc(Bmmo::Messages::IMessage* msg) {
-		switch (msg->GetOpCode()) {
-			case WhispersAbyss::Bmmo::OpCode::LoginDenied:
-			{
-				mOutput->Printf("[Abyss] Server refuse our login request.");
-				DisconnectSteam();
-				mIsDead.store(true);
+				// actively stop
+				Stop();
 				break;
 			}
-			case WhispersAbyss::Bmmo::OpCode::LoginAcceptedV2:
+			case k_ESteamNetworkingConnectionState_None:
 			{
-				mOutput->Printf("[Abyss] Login successfully.");
+				mOutput->Printf("[Abyss-#%ld] Now in Disconnected status.", mIndex);
 				break;
 			}
-			case WhispersAbyss::Bmmo::OpCode::OwnedCheatToggle:
+			case k_ESteamNetworkingConnectionState_FindingRoute:
+			case k_ESteamNetworkingConnectionState_FinWait:
+			case k_ESteamNetworkingConnectionState_Linger:
+			case k_ESteamNetworkingConnectionState_Dead:
+			case k_ESteamNetworkingConnectionState__Force32Bit:
 			{
-				mOutput->Printf("[Abyss] Server order cheat toggle. Auto response.");
-				auto cheat_msg = new Bmmo::Messages::CheatState();
-				cheat_msg->mCheated = true;
-				cheat_msg->mNotify = false;
-				Send(cheat_msg);
 				break;
 			}
-			case WhispersAbyss::Bmmo::OpCode::None:
-			case WhispersAbyss::Bmmo::OpCode::LoginRequest:
-			case WhispersAbyss::Bmmo::OpCode::LoginAccepted:
-			case WhispersAbyss::Bmmo::OpCode::PlayerDisconnected:
-			case WhispersAbyss::Bmmo::OpCode::PlayerConnected:
-			case WhispersAbyss::Bmmo::OpCode::Ping:
-			case WhispersAbyss::Bmmo::OpCode::BallState:
-			case WhispersAbyss::Bmmo::OpCode::OwnedBallState:
-			case WhispersAbyss::Bmmo::OpCode::KeyboardInput:
-			case WhispersAbyss::Bmmo::OpCode::Chat:
-			case WhispersAbyss::Bmmo::OpCode::LevelFinish:
-			case WhispersAbyss::Bmmo::OpCode::LoginRequestV2:
-			case WhispersAbyss::Bmmo::OpCode::PlayerConnectedV2:
-			case WhispersAbyss::Bmmo::OpCode::CheatState:
-			case WhispersAbyss::Bmmo::OpCode::CheatToggle:
-			case WhispersAbyss::Bmmo::OpCode::OwnedCheatState:
 			default:
 				break;
 		}
 	}
+
 
 #pragma region steam work
 
@@ -316,35 +267,30 @@ namespace WhispersAbyss {
 			(void*)FuckValve::ProcSteamConnectionStatusChanged);
 
 		// connect
-		mSteamConnection = mSteamSockets->ConnectByIPAddress(server_address, 1, &opt);
+		mSteamConnection = smSteamSockets->ConnectByIPAddress(server_address, 1, &opt);
 		if (mSteamConnection == k_HSteamNetConnection_Invalid)
 			return false;
 
+		FuckValve::RegisterClient(mSteamConnection, this);
 		return true;
 	}
 
-	void WhispersAbyss::AbyssClient::RecvSteam(std::deque<Bmmo::Messages::IMessage*>* msg_list) {
+	void WhispersAbyss::AbyssClient::RecvSteam(std::deque<Bmmo::Message*>* msg_list) {
 		std::lock_guard<std::mutex> lockGuard(mSteamMutex);
 
 		if (mSteamConnection == k_HSteamNetConnection_Invalid) return;
 
-		int msg_count = mSteamSockets->ReceiveMessagesOnConnection(mSteamConnection, mSteamMessages, STEAM_MSG_CAPACITY);
+		int msg_count = smSteamSockets->ReceiveMessagesOnConnection(mSteamConnection, mSteamMessages, STEAM_MSG_CAPACITY);
 		if (msg_count < 0)
-			mOutput->FatalError("[Abyss] Get minus number in getting GNS message list.");
+			mOutput->FatalError("[Abyss-#%ld] Get minus number in getting GNS message list.", mIndex);
 		else if (msg_count > 0) {
 			// process message
 			for (int i = 0; i < msg_count; ++i) {
-				// write to stream
-				mSteamBuffer.str("");
-				mSteamBuffer.clear();
-				mSteamBuffer.write((const char*)mSteamMessages[i]->m_pData, mSteamMessages[i]->m_cbSize);
-
-				// try parsing
+				// parse data
 				// and add into list
-				auto msg = CreateMessageFromStream(&mSteamBuffer);
-				if (msg != NULL) {
-					msg_list->push_back(msg);
-				}
+				auto msg = new Bmmo::Message();
+				msg->ReadGnsData(mSteamMessages[i]->m_pData, mSteamMessages[i]->m_nFlags, mSteamMessages[i]->m_cbSize);
+				msg_list->push_back(msg);
 
 				// release steam msg data
 				mSteamMessages[i]->Release();
@@ -352,120 +298,78 @@ namespace WhispersAbyss {
 		}
 	}
 
-	void WhispersAbyss::AbyssClient::SendSteam(Bmmo::Messages::IMessage* msg) {
+	void WhispersAbyss::AbyssClient::SendSteam(Bmmo::Message* msg) {
 		std::lock_guard<std::mutex> lockGuard(mSteamMutex);
 
 		if (mSteamConnection == k_HSteamNetConnection_Invalid) return;
 
-		mSteamBuffer.str("");
-		mSteamBuffer.clear();
-		msg->Serialize(&mSteamBuffer);
-		mSteamSockets->SendMessageToConnection(
+		smSteamSockets->SendMessageToConnection(
 			mSteamConnection,
-			mSteamBuffer.str().c_str(),
-			mSteamBuffer.str().size(),
-			msg->GetMessageSendFlag(),
+			msg->GetData(),
+			msg->GetDataLen(),
+			msg->GetGnsSendFlag(),
 			nullptr
 		);
+
+		delete msg;
 	}
 
 	void AbyssClient::DisconnectSteam() {
 		std::lock_guard<std::mutex> lockGuard(mSteamMutex);
-
+		
 		if (mSteamConnection != k_HSteamNetConnection_Invalid) {
-			mOutput->Printf("[Abyss] Actively closing connection...");
-			mSteamSockets->CloseConnection(mSteamConnection, 0, "Goodbye from WhispersAbyss", true);
+			mOutput->Printf("[Abyss-#%ld] Actively closing connection...", mIndex);
+			smSteamSockets->CloseConnection(mSteamConnection, 0, "Goodbye from WhispersAbyss", true);
 			//assert(connection == this->connection_);
+			FuckValve::UnregisterClient(mSteamConnection);
 			mSteamConnection = k_HSteamNetConnection_Invalid;
 			//estate_ = k_ESteamNetworkingConnectionState_None;
 		}
 	}
 
-	void AbyssClient::HandleSteamDebugOutput(ESteamNetworkingSocketsDebugOutputType eType, const char* pszMsg) {
-		if (eType == k_ESteamNetworkingSocketsDebugOutputType_Bug) {
-			mOutput->FatalError(pszMsg);
-		} else {
-			mOutput->Printf(pszMsg);
-		}
-	}
-
-	void AbyssClient::HandleSteamConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* pInfo) {
-		auto state = pInfo->m_info.m_eState;
-
-		switch (state) {
-			case k_ESteamNetworkingConnectionState_Connecting:
-			{
-				mOutput->Printf("[Abyss] Connecting...");
-				break;
-			}
-			case k_ESteamNetworkingConnectionState_Connected:
-			{
-				mOutput->Printf("[Abyss] Connected. Waiting for Login.");
-				auto verfy_msg = new Bmmo::Messages::LoginRequestV2();
-				verfy_msg->mNickname = mUsername.c_str();
-				verfy_msg->mVersion.mMajor = 3;
-				verfy_msg->mVersion.mMinor = 2;
-				verfy_msg->mVersion.mSubminor = 2;
-				verfy_msg->mVersion.mStage = Bmmo::PluginStage::Alpha;
-				verfy_msg->mVersion.mBuild = 8;
-				verfy_msg->mCheated = 1;
-
-				Send(verfy_msg);
-				break;
-			}
-			case k_ESteamNetworkingConnectionState_ClosedByPeer:
-			{
-				mOutput->Printf("[Abyss] Connection Lost. Reason %s(%d)",
-					pInfo->m_info.m_szEndDebug,
-					pInfo->m_info.m_eEndReason);
-
-				mIsDead.store(true);
-				break;
-			}
-			case k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
-			{
-				mOutput->Printf("[Abyss] Local Error. Reason %s(%d)",
-					pInfo->m_info.m_szEndDebug,
-					pInfo->m_info.m_eEndReason);
-
-				mIsDead.store(true);
-				break;
-			}
-			case k_ESteamNetworkingConnectionState_None:
-			{
-				mOutput->Printf("[Abyss] Now in Disconnected status.");
-				break;
-			}
-			case k_ESteamNetworkingConnectionState_FindingRoute:
-			case k_ESteamNetworkingConnectionState_FinWait:
-			case k_ESteamNetworkingConnectionState_Linger:
-			case k_ESteamNetworkingConnectionState_Dead:
-			case k_ESteamNetworkingConnectionState__Force32Bit:
-			{
-				break;
-			}
-			default:
-				break;
-		}
-	}
+	//void AbyssClient::HandleSteamDebugOutput(ESteamNetworkingSocketsDebugOutputType eType, const char* pszMsg) {
+	//	if (eType == k_ESteamNetworkingSocketsDebugOutputType_Bug) {
+	//		mOutput->FatalError(pszMsg);
+	//	} else {
+	//		mOutput->Printf(pszMsg);
+	//	}
+	//}
 
 	namespace FuckValve {
 
-		AbyssClient* AbyssClientSingleton = NULL;
-		std::mutex LockAbyssClientSingleton;
+		OutputHelper* ValveOutput = NULL;
+		std::unordered_map<HSteamNetConnection, AbyssClient*> ValveClientRouter;
+		std::mutex LockValveClientRouter, LockValveOutput;
+
 
 		void ProcSteamDebugOutput(ESteamNetworkingSocketsDebugOutputType eType, const char* pszMsg) {
-			std::lock_guard<std::mutex> lockGuard(LockAbyssClientSingleton);
+			std::lock_guard<std::mutex> lockGuard(LockValveOutput);
 
-			if (AbyssClientSingleton != NULL)
-				AbyssClientSingleton->HandleSteamDebugOutput(eType, pszMsg);
+			if (eType == k_ESteamNetworkingSocketsDebugOutputType_Bug) {
+				ValveOutput->FatalError(pszMsg);
+			} else {
+				ValveOutput->Printf(pszMsg);
+			}
+		}
+
+
+		void RegisterClient(HSteamNetConnection conn, AbyssClient* instance) {
+			std::lock_guard<std::mutex> lockGuard(LockValveClientRouter);
+			ValveClientRouter.emplace(conn, instance);
+		}
+
+		void UnregisterClient(HSteamNetConnection conn) {
+			std::lock_guard<std::mutex> lockGuard(LockValveClientRouter);
+			ValveClientRouter.erase(conn);
 		}
 
 		void ProcSteamConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* pInfo) {
-			std::lock_guard<std::mutex> lockGuard(LockAbyssClientSingleton);
+			std::lock_guard<std::mutex> lockGuard(LockValveClientRouter);
 
-			if (AbyssClientSingleton != NULL)
-				AbyssClientSingleton->HandleSteamConnectionStatusChanged(pInfo);
+			auto pair = ValveClientRouter.find(pInfo->m_hConn);
+			if (pair != ValveClientRouter.end()) {
+				pair->second->HandleSteamConnectionStatusChanged(pInfo);
+			}
 		}
 
 	}

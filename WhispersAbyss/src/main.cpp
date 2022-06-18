@@ -73,8 +73,8 @@ int main(int argc, char* argv[]) {
 	signalStop.store(false);
 
 	WhispersAbyss::OutputHelper outputHelper;
-	WhispersAbyss::CelestiaServer celestiaServer(&outputHelper, "6172");
-	WhispersAbyss::AbyssClient abyssClient(&outputHelper, "p.okbc.st:26676", "SwungMoe");
+	WhispersAbyss::CelestiaServer celestiaServer(&outputHelper, (uint16_t)6172u);
+	WhispersAbyss::AbyssClient abyssClient(&outputHelper, "p.okbc.st:26676");
 
 	// start worker
 	std::thread tdMainWorker(

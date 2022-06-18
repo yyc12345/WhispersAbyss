@@ -21,32 +21,23 @@ namespace WhispersAbyss {
 		if (mTdSend.joinable())
 			mTdSend.join();
 
-		WhispersAbyss::Cmmo::Messages::IMessage* ptr;
-		while (mRecvMsg.begin() != mRecvMsg.end()) {
-			ptr = *mRecvMsg.begin();
-			mRecvMsg.pop_front();
-			delete ptr;
-		}
-		while (mSendMsg.begin() != mSendMsg.end()) {
-			ptr = *mSendMsg.begin();
-			mSendMsg.pop_front();
-			delete ptr;
-		}
+		Bmmo::DeleteCachedMessage(&mRecvMsg);
+		Bmmo::DeleteCachedMessage(&mSendMsg);
 
 		mOutput->Printf("[Gnosis-#%ld] Connection instance disposed.", mIndex);
 	}
 
-	void CelestiaGnosis::Send(std::deque<Cmmo::Messages::IMessage*>* manager_list) {
+	void CelestiaGnosis::Stop() {
+		mSocket.close();
+	}
+
+	void CelestiaGnosis::Send(std::deque<Bmmo::Message*>* manager_list) {
 		size_t msg_size;
 
 		// push data
 		mSendMsgMutex.lock();
-		for (auto it = manager_list->begin(); it != manager_list->end(); ++it) {
-			// push its clone.
-			mSendMsg.push_back((*it)->Clone());
-			// do not clean manager_list
-		}
-		msg_size = mSendMsg.size();
+		Bmmo::MoveCachedMessage(manager_list, &mSendMsg);
+		msg_size = mSendMsg.size();	// get size now for following check
 		mSendMsgMutex.unlock();
 
 		if (msg_size >= WARNING_CAPACITY)
@@ -56,12 +47,9 @@ namespace WhispersAbyss {
 			mSocket.close();
 		}
 	}
-	void CelestiaGnosis::Recv(std::deque<Cmmo::Messages::IMessage*>* manager_list) {
+	void CelestiaGnosis::Recv(std::deque<Bmmo::Message*>* manager_list) {
 		mRecvMsgMutex.lock();
-		while (mRecvMsg.begin() != mRecvMsg.end()) {
-			manager_list->push_back(*mRecvMsg.begin());
-			mRecvMsg.pop_front();
-		}
+		Bmmo::MoveCachedMessage(&mRecvMsg, manager_list);
 		mRecvMsgMutex.unlock();
 	}
 
@@ -69,67 +57,8 @@ namespace WhispersAbyss {
 		return mSocket.is_open();
 	}
 
-	Cmmo::Messages::IMessage* CelestiaGnosis::CreateMessageFromStream(std::stringstream* data) {
-		// peek opcode
-		Cmmo::OpCode code = Cmmo::Messages::IMessage::PeekOpCode(data);
-
-		// check format
-		Cmmo::Messages::IMessage* msg = NULL;
-		switch (code) {
-			case WhispersAbyss::Cmmo::OpCode::None:
-				mOutput->Printf("[Gnosis-#%ld] Invalid OpCode %d.", mIndex, code);
-				break;
-			case WhispersAbyss::Cmmo::OpCode::CS_OrderChat:
-				msg = new Cmmo::Messages::OrderChat();
-				break;
-			case WhispersAbyss::Cmmo::OpCode::SC_Chat:
-				msg = new Cmmo::Messages::Chat();
-				break;
-			case WhispersAbyss::Cmmo::OpCode::CS_OrderGlobalCheat:
-				msg = new Cmmo::Messages::OrderGlobalCheat();
-				break;
-			case WhispersAbyss::Cmmo::OpCode::CS_OrderClientList:
-				msg = new Cmmo::Messages::OrderClientList();
-				break;
-			case WhispersAbyss::Cmmo::OpCode::SC_ClientList:
-				msg = new Cmmo::Messages::ClientList();
-				break;
-			case WhispersAbyss::Cmmo::OpCode::SC_BallState:
-				msg = new Cmmo::Messages::BallState();
-				break;
-			case WhispersAbyss::Cmmo::OpCode::SC_ClientConnected:
-				msg = new Cmmo::Messages::ClientConnected();
-				break;
-			case WhispersAbyss::Cmmo::OpCode::SC_ClientDisconnected:
-				msg = new Cmmo::Messages::ClientDisconnected();
-				break;
-			case WhispersAbyss::Cmmo::OpCode::SC_CheatState:
-				msg = new Cmmo::Messages::CheatState();
-				break;
-			case WhispersAbyss::Cmmo::OpCode::SC_GlobalCheat:
-				msg = new Cmmo::Messages::GlobalCheat();
-				break;
-			case WhispersAbyss::Cmmo::OpCode::SC_LevelFinish:
-				msg = new Cmmo::Messages::LevelFinish();
-				break;
-			default:
-				mOutput->Printf("[Gnosis-#%ld] Unknow OpCode %d.", mIndex, code);
-				break;
-		}
-
-		if (msg != NULL) {
-			if (!msg->Deserialize(data)) {
-				mOutput->Printf("[Gnosis-#%ld] Fail to parse message with OpCode %d.", mIndex, code);
-				delete msg;
-				msg = NULL;
-			}
-		}
-		return msg;
-	}
-
 	void CelestiaGnosis::SendWorker() {
-		Cmmo::Messages::IMessage* msg;
-		std::stringstream buffer;
+		Bmmo::Message* msg;
 		asio::error_code ec;
 
 		while (IsConnected()) {
@@ -151,12 +80,9 @@ namespace WhispersAbyss {
 				continue;
 			}
 
-			// get serialized msg and delete msg
-			buffer.str("");
-			buffer.clear();
-			msg->Serialize(&buffer);
-			uint32_t length = buffer.str().size();
-			delete msg;
+			// get serialized msg
+			uint32_t length = msg->GetDataLen();
+			uint32_t is_reliable = msg->GetIsReliable() ? 1u : 0u;
 			// write data
 			asio::write(mSocket, asio::buffer(&length, sizeof(uint32_t)), ec);
 			if (ec) {
@@ -164,20 +90,27 @@ namespace WhispersAbyss {
 				mSocket.close();
 				return;
 			}
-			asio::write(mSocket, asio::buffer(buffer.str().data(), length), ec);
+			asio::write(mSocket, asio::buffer(&is_reliable, sizeof(uint32_t)), ec);
+			if (ec) {
+				mOutput->Printf("[Gnosis-#%ld] Fail to write is_reliable: %s", mIndex, ec.message().c_str());
+				mSocket.close();
+				return;
+			}
+			asio::write(mSocket, asio::buffer(msg->GetData(), length), ec);
 			if (ec) {
 				mOutput->Printf("[Gnosis-#%ld] Fail to write body: %s", mIndex, ec.message().c_str());
 				mSocket.close();
 				return;
 			}
+			// delete message
+			delete msg;
 
 		}
 	}
 
 	void CelestiaGnosis::RecvWorker() {
-		uint32_t mMsgHeader;
+		uint32_t mMsgHeader, mMsgReliable;
 		std::string mMsgBuffer;
-		std::stringstream mMsgStream;
 		asio::error_code ec;
 
 		while (IsConnected()) {
@@ -199,23 +132,34 @@ namespace WhispersAbyss {
 				return;
 			}
 
+			// recv is_reliable
+			asio::read(mSocket, asio::buffer(&mMsgReliable, sizeof(uint32_t)), ec);
+			if (!ec) {
+				if (mMsgReliable >= MAX_MSG_SIZE) {
+					mOutput->Printf("[Gnosis-#%ld] Header exceed MAX_MSG_SIZE.", mIndex);
+					mSocket.close();
+					return;
+				} else {
+					// preparing reading body
+					;
+				}
+			} else {
+				mOutput->Printf("[Gnosis-#%ld] Fail to read is_reliable: %s", mIndex, ec.message().c_str());
+				mSocket.close();
+				return;
+			}
+
 			// recv body
 			mMsgBuffer.resize(mMsgHeader);
 			asio::read(mSocket, asio::buffer(mMsgBuffer.data(), mMsgHeader), ec);
 			if (!ec) {
 
-				// set for stream
-				mMsgStream.str("");
-				mMsgStream.clear();
-				mMsgStream.write(mMsgBuffer.c_str(), mMsgHeader);
-
 				// get msg and push it
-				auto msg = CreateMessageFromStream(&mMsgStream);
-				if (msg != NULL) {
-					mRecvMsgMutex.lock();
-					mRecvMsg.push_back(msg);
-					mRecvMsgMutex.unlock();
-				}
+				auto msg = new Bmmo::Message();
+				msg->ReadTcpData(&mMsgBuffer, mMsgReliable != 0, mMsgHeader);
+				mRecvMsgMutex.lock();
+				mRecvMsg.push_back(msg);
+				mRecvMsgMutex.unlock();
 
 				// for next reading
 			} else {
