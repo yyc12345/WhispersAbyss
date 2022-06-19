@@ -21,6 +21,13 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="BmmoClient.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="BmmoProto.py" />
+    <Compile Include="OutputHelper.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="ShadowWalker.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
