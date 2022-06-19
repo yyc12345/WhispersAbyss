@@ -13,7 +13,7 @@ namespace WhispersAbyss {
 	public:
 		std::atomic_bool mIsRunning;
 
-		CelestiaServer(OutputHelper* output, uint16_t* port);
+		CelestiaServer(OutputHelper* output, uint16_t port);
 		~CelestiaServer();
 
 		void Start();

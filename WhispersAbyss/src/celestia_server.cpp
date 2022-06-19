@@ -3,10 +3,10 @@
 
 namespace WhispersAbyss {
 
-	CelestiaServer::CelestiaServer(OutputHelper* output, uint16_t* port) :
+	CelestiaServer::CelestiaServer(OutputHelper* output, uint16_t port) :
 		mIndexDistributor(0),
 		mOutput(output),
-		mPort((uint16_t)atoll(port)),
+		mPort(port),
 		mIoContext(),
 		mConnections(), mConnectionsMutex(),
 		mTcpAcceptor(mIoContext, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), mPort)),

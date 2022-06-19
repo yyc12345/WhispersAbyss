@@ -9,15 +9,21 @@ namespace WhispersAbyss {
 	ISteamNetworkingSockets* AbyssClient::smSteamSockets = NULL;
 	uint64_t AbyssClient::smIndexDistributor = 0;
 
+	ModuleStatus AbyssClient::GetConnStatus() {
+		std::lock_guard<std::mutex> lockGuard(mStatusMutex);
+		return mStatus;
+	}
+
 	AbyssClient::AbyssClient(OutputHelper* output, const char* server) :
 		mIndex(smIndexDistributor++),
 
-		mStatus(ModuleStatus::Initializing), mStopCtx(false),
-		
+		mStatus(ModuleStatus::Initializing), mStatusMutex(),
+		mStopCtx(false),
+
 		mOutput(output),
 		mRecvMsg(), mSendMsg(),
-		mRecvMsgMutex(), mSendMsgMutex(), 
-		
+		mRecvMsgMutex(), mSendMsgMutex(),
+
 		mSteamMutex(),
 		mSteamConnection(k_HSteamNetConnection_Invalid), mSteamBuffer(),
 
@@ -30,7 +36,7 @@ namespace WhispersAbyss {
 		// when creating instance, we should connect server immediately
 		// start connect worker and notify main worker
 		mStopCtx.store(false);
-		mStatus.store(ModuleStatus::Ready);
+		mStatus = ModuleStatus::Ready;
 		mTdCtx = std::thread(&AbyssClient::CtxWorker, this);
 		mTdConnect = std::thread(&AbyssClient::ConnectWorker, this);
 
@@ -38,6 +44,7 @@ namespace WhispersAbyss {
 	}
 
 	AbyssClient::~AbyssClient() {
+		// free remained messages
 		Bmmo::DeleteCachedMessage(&mRecvMsg);
 		Bmmo::DeleteCachedMessage(&mSendMsg);
 
@@ -80,10 +87,11 @@ namespace WhispersAbyss {
 
 	void AbyssClient::Stop() {
 		// check requirement
-		
-		auto status = mStatus.load();
-		if (status == ModuleStatus::Stopping || status == ModuleStatus::Stopped) return;
-		mStatus.store(ModuleStatus::Stopping);
+		{
+			std::lock_guard<std::mutex> lockGuard(mStatusMutex);
+			if (mStatus == ModuleStatus::Stopping || mStatus == ModuleStatus::Stopped) return;
+			mStatus = ModuleStatus::Stopping;
+		}
 
 		// start stop worker
 		mTdStop = std::thread(&AbyssClient::StopWorker, this);
@@ -92,8 +100,23 @@ namespace WhispersAbyss {
 	void AbyssClient::CtxWorker() {
 		std::deque<Bmmo::Message*> incoming_message, outbound_message;
 
-		while (!mStopCtx.load()) {
+		while (true) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			// check requirement
+			{
+				std::lock_guard<std::mutex> lockGuard(mStatusMutex);
+				switch (mStatus) {
+					case WhispersAbyss::ModuleStatus::Ready:
+					case WhispersAbyss::ModuleStatus::Initializing:
+						continue;	// not ready for message, waiting
+					case WhispersAbyss::ModuleStatus::Running:
+						// do normal process
+						break;
+					case WhispersAbyss::ModuleStatus::Stopping:
+					case WhispersAbyss::ModuleStatus::Stopped:
+						goto exit_ctx_worker;	// something goes wrong, exit ctx worker
+				}
+			}
 
 			// ==================================
 			// poll new message
@@ -126,6 +149,9 @@ namespace WhispersAbyss {
 			}
 
 		}
+
+	exit_ctx_worker:
+		return;
 	}
 
 	void AbyssClient::ConnectWorker() {
@@ -146,11 +172,15 @@ namespace WhispersAbyss {
 				std::string connection_string = endpoint.address().to_string() + ":" + std::to_string(endpoint.port());
 				mOutput->Printf("[Abyss-#%ld] Trying %s...", mIndex, connection_string.c_str());
 				if (ConnectSteam(&connection_string)) {
-					mStatus.store(ModuleStatus::Running);
+					std::lock_guard<std::mutex> lockGuard(mStatusMutex);
+					mStatus = ModuleStatus::Running;
 					break;	// success
 				}
 			}
 		} else {
+			// failed
+			// actively call stop
+			Stop();
 			mOutput->Printf("[Abyss-#%ld] Fail to resolve hostname.", mIndex);
 		}
 
@@ -168,7 +198,10 @@ namespace WhispersAbyss {
 		if (mTdConnect.joinable())
 			mTdConnect.join();
 
-		mStatus.store(ModuleStatus::Stopped);
+		{
+			std::lock_guard<std::mutex> lockGuard(mStatusMutex);
+			mStatus = ModuleStatus::Stopped;
+		}
 	}
 
 	void AbyssClient::Send(std::deque<Bmmo::Message*>* manager_list) {
@@ -316,7 +349,7 @@ namespace WhispersAbyss {
 
 	void AbyssClient::DisconnectSteam() {
 		std::lock_guard<std::mutex> lockGuard(mSteamMutex);
-		
+
 		if (mSteamConnection != k_HSteamNetConnection_Invalid) {
 			mOutput->Printf("[Abyss-#%ld] Actively closing connection...", mIndex);
 			smSteamSockets->CloseConnection(mSteamConnection, 0, "Goodbye from WhispersAbyss", true);

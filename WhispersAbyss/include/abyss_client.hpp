@@ -16,7 +16,9 @@ namespace WhispersAbyss {
 
 	class AbyssClient {
 	public:
-		std::atomic<ModuleStatus> mStatus;
+		ModuleStatus mStatus;
+		std::mutex mStatusMutex;
+		ModuleStatus GetConnStatus();
 
 		AbyssClient(OutputHelper* output, const char* server);
 		~AbyssClient();
@@ -56,6 +58,10 @@ namespace WhispersAbyss {
 	};
 
 	namespace FuckValve {
+
+		extern OutputHelper* ValveOutput;
+		extern std::unordered_map<HSteamNetConnection, AbyssClient*> ValveClientRouter;
+		extern std::mutex LockValveClientRouter, LockValveOutput;
 
 		void RegisterClient(HSteamNetConnection conn, AbyssClient* instance);
 		void UnregisterClient(HSteamNetConnection conn);

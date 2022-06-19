@@ -7,11 +7,11 @@ namespace WhispersAbyss {
 		mCelestiaClient(celestia),
 		mAbyssClient(NULL),
 		mTdStop(), mTdRunningDetector(),
-		mStatus(ModuleStatus::Initializing),
-		mMessages()
-	{
+		mStatus(ModuleStatus::Initializing), mStatusMutex(),
+		mMessages(),
+		mCelestiaCounter(0), mAbyssCounter(0) {
 		mAbyssClient = new AbyssClient(output, server);
-		mStatus.store(ModuleStatus::Ready);
+		mStatus = ModuleStatus::Ready;
 		mTdRunningDetector = std::thread(&LeyLinesBridge::DetectRunning, this);
 	}
 
@@ -20,23 +20,43 @@ namespace WhispersAbyss {
 		delete mAbyssClient;
 	}
 
+	ModuleStatus LeyLinesBridge::GetConnStatus() {
+		std::lock_guard<std::mutex> lockGuard(mStatusMutex);
+		return mStatus;
+	}
+
 	void LeyLinesBridge::ActiveStop() {
-		if (mStatus.load() != ModuleStatus::Running) return;
-		mStatus.store(ModuleStatus::Stopping);
+		{
+			std::lock_guard<std::mutex> lockGuard(mStatusMutex);
+			if (mStatus != ModuleStatus::Running) return;
+			mStatus = ModuleStatus::Stopping;
+		}
+
 		mTdStop = std::thread(&LeyLinesBridge::StopWorker, this);
 	}
 
 	void LeyLinesBridge::ProcessBridge() {
-		// check requirements
-		if (mStatus.load() != ModuleStatus::Running) return;
 		// when any client stopped, stop the whole bridge actively
-		if (!(mCelestiaClient->IsConnected() && mAbyssClient->mStatus.load() != ModuleStatus::Stopped)) ActiveStop();
+		if (!(mCelestiaClient->IsConnected() && mAbyssClient->GetConnStatus() != ModuleStatus::Stopped)) ActiveStop();
 
-		// otherwise, move msg data
+		// check msg delivr requirements
+		{
+			std::lock_guard<std::mutex> lockGuard(mStatusMutex);
+			if (mStatus != ModuleStatus::Running) return;
+		}
+		// move msg data
+		// and collect data count
+		// i know adding counter can be rewritten by fetch_add() or +=
+		// but i never use CAS before so i want to try it.
+		uint64_t count;
 		mCelestiaClient->Recv(&mMessages);
+		count = mCelestiaCounter.load();
+		while (!mCelestiaCounter.compare_exchange_strong(count, count + mMessages.size()));
 		mAbyssClient->Send(&mMessages);
 
 		mAbyssClient->Recv(&mMessages);
+		count = mAbyssCounter.load();
+		while (!mAbyssCounter.compare_exchange_strong(count, count + mMessages.size()));
 		mCelestiaClient->Send(&mMessages);
 	}
 
@@ -49,22 +69,46 @@ namespace WhispersAbyss {
 		while (mCelestiaClient->IsConnected()) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
 		}
-		while (mAbyssClient->mIsDead.load()) {
+		while (mAbyssClient->GetConnStatus() != ModuleStatus::Stopped) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
 		}
 
-		mStatus.store(ModuleStatus::Stopped);
+		{
+			std::lock_guard<std::mutex> lockGuard(mStatusMutex);
+			mStatus = ModuleStatus::Stopped;
+		}
 	}
 
 	void LeyLinesBridge::DetectRunning() {
-		while (!mCelestiaClient->IsConnected()) {
+		while (true) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+			{	// leave when any client stopped before successfully running
+				std::lock_guard<std::mutex> lockGuard(mStatusMutex);
+				if (mStatus != ModuleStatus::Ready) return;
+			}
+			if (mCelestiaClient->IsConnected()) break;
 		}
-		while (!mAbyssClient->mIsRunning.load()) {
+		while (true) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+			{	// leave when any client stopped before successfully running
+				std::lock_guard<std::mutex> lockGuard(mStatusMutex);
+				if (mStatus != ModuleStatus::Ready) return;
+			}
+			if (mAbyssClient->GetConnStatus() == ModuleStatus::Running) break;
 		}
 
-		mStatus.store(ModuleStatus::Running);
+		{
+			std::lock_guard<std::mutex> lockGuard(mStatusMutex);
+			mStatus = ModuleStatus::Running;
+		}
+	}
+
+	void LeyLinesBridge::ReportStatus() {
+		// todo: finish status reporter
+		mCelestiaCounter.load();
+		mAbyssCounter.load();
 	}
 
 }
