@@ -9,7 +9,7 @@ class OutputHelper:
         self._mMsgList = []
         self._mMsgListCount = 0
 
-    def Send(self, strl: str):
+    def Print(self, strl: str):
         self._mMsgMutex.acquire()
         if (self._mIsInputing):
             if (self._mMsgListCount >= OutputHelper._mMAX_MSG_SIZE):
