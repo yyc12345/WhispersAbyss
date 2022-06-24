@@ -18,6 +18,11 @@ namespace WhispersAbyss {
 	LeyLinesBridge::~LeyLinesBridge() {
 		delete mCelestiaClient;
 		delete mAbyssClient;
+
+		if (mTdRunningDetector.joinable())
+			mTdRunningDetector.join();
+		if (mTdStop.joinable())
+			mTdStop.join();
 	}
 
 	ModuleStatus LeyLinesBridge::GetConnStatus() {

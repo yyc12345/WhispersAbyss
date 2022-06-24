@@ -55,17 +55,17 @@ class BmmoContext:
         self._mCtxCmdMutex.release()
 
     # ============= Useful Funcs =============
-    def GetUsernameFromGnsUid(self, maps: dict, uid: int) -> str:
+    def _GetUsernameFromGnsUid(self, uid: int) -> str:
         if uid == 0:
             return "[Server]"
         else:
-            player_entity = maps.get(msg.player_id, None)
+            player_entity = self._mClientsMap.get(uid, None)
             if player_entity is None:
                 return "[Unknow]"
             else:
                 return player_entity.nickname
 
-    def CountdownTypeToString(self, cdtype: int) -> str:
+    def _CountdownTypeToString(self, cdtype: int) -> str:
         if cdtype == BmmoProto.countdown_type.CountdownType_Go:
             return "Go!"
         elif cdtype == BmmoProto.countdown_type.CountdownType_1:
@@ -77,7 +77,7 @@ class BmmoContext:
         else:
             return "Unknow"
 
-    def MapTypeToString(self, mtp: int) -> str:
+    def _MapTypeToString(self, mtp: int) -> str:
         if mtp == BmmoProto.map_type.UnknowType:
             return "Unknow"
         elif mtp == BmmoProto.map_type.UnknowType:
@@ -87,14 +87,17 @@ class BmmoContext:
         else:
             return "Unknow"
 
-    def FormatMd5(self, md5: tuple):
+    def _FormatMd5(self, md5: tuple):
         return ''.join('{:0>2x}'.format(item) for item in md5)
 
-    def FormatUuid(self, uuid: tuple):
+    def _FormatUuid(self, uuid: tuple):
         slash = (3, 5, 7, 9)
         return ''.join(('{:0>2x}-' if idx in slash else '{:0>2x}').format(item) for idx, item in enumerate(uuid))
 
-    def IntToBoolean(self, num: int) -> bool:
+    def _FormatGnsUuid(self, uuid: int):
+        return '{:0>8x}'.format(uuid)
+
+    def _IntToBoolean(self, num: int) -> bool:
         return num != 0
 
     # ============= Context Worker =============
@@ -132,7 +135,9 @@ class BmmoContext:
                 sent_msg.player_id = 0
                 sent_msg.chat_content = cache_args[0]
             elif cache_cmd == ContextCommandType.ProfileCmd:
-                self._mOutputHelper.Print("[ContextWorker] This is profile")
+                user_ls = 'Name\tUUID\tIs Cheated\n'
+                user_ls += '\n'.join('{}\t{}\t{}'.format(i.nickname, self._FormatGnsUuid(i.uuid), i.cheated) for i in self._mClientsMap.values())
+                self._mOutputHelper.Print("[ContextWorker] User list:\n" + user_ls)
             else:
                 self._mOutputHelper.Print("[ContextWorker] Unknow command")
 
@@ -157,7 +162,7 @@ class BmmoContext:
                         self._mOutputHelper.Print("[User] Login failed.")
                         break
                     elif opcode == BmmoProto.opcode.login_accepted_v2_msg:
-                        self._mOutputHelper.Print("[User] Login successfully.")
+                        self._mOutputHelper.Print("[User] Login successfully. Online player count: {}".format(len(msg.data)))
 
                         # update clients data
                         self._mClientsMap.clear()
@@ -166,17 +171,17 @@ class BmmoContext:
 
                     # chat
                     elif opcode == BmmoProto.opcode.chat_msg:
-                        username = GetUsernameFromGnsUid(self._mClientsMap, msg.player_id)
-                        self._mOutputHelper.Print("[Chat] <{}, {}> {}".format(msg.player_id, username, msg.chat_content))
+                        username = self._GetUsernameFromGnsUid(msg.player_id)
+                        self._mOutputHelper.Print("[Chat] <{}, {}> {}".format(self._FormatGnsUuid(msg.player_id), username, msg.chat_content))
 
                     # other players login logout
                     elif opcode == BmmoProto.opcode.player_connected_v2_msg:
-                        self._mOutputHelper.Print("[User] {} join the server.".format(msg.data.nickname))
+                        self._mOutputHelper.Print("[User] {} joined the server.".format(msg.data.nickname))
                         # update clients data
                         self._mClientsMap[msg.data.uuid] = msg.data
                     elif opcode == BmmoProto.opcode.player_connected_v2_msg:
-                        self._mOutputHelper.Print("[User] {} leave the server.".format(
-                            GetUsernameFromGnsUid(self._mClientsMap, msg.player_id)
+                        self._mOutputHelper.Print("[User] {} left the server.".format(
+                            self._GetUsernameFromGnsUid(msg.player_id)
                         ))
                         # update clients data
                         del self._mClientsMap[msg.player_id]
@@ -186,24 +191,24 @@ class BmmoContext:
                             msg.executor_name,
                             msg.reason
                         ))
-                        if IntToBoolean(msg.crashed):
+                        if self._IntToBoolean(msg.crashed):
                             self._mOutputHelper.Print("[User] {} client is crashed.".format(msg.kicked_player_name))
 
                     # cheat update
                     elif opcode == BmmoProto.opcode.owned_cheat_state_msg:
-                        if IntToBoolean(msg.state.notify):
+                        if self._IntToBoolean(msg.state.notify):
                             self._mOutputHelper.Print("[Cheat] {} now in cheat status: {}.".format(
-                                GetUsernameFromGnsUid(self._mClientsMap, msg.player_id),
-                                IntToBoolean(msg.state.cheated)
+                                self._GetUsernameFromGnsUid(msg.player_id),
+                                self._IntToBoolean(msg.state.cheated)
                             ))
 
                         # update cheat status
                         self._mClientsMap[msg.player_id].cheated = msg.state.cheated
                     elif opcode == BmmoProto.opcode.owned_cheat_toggle_msg:
-                        if IntToBoolean(msg.state.notify):
+                        if self._IntToBoolean(msg.state.notify):
                             self._mOutputHelper.Print("[Cheat] {} order everyone go into cheat status: {}.".format(
-                                GetUsernameFromGnsUid(self._mClientsMap, msg.player_id),
-                                IntToBoolean(msg.state.cheated)
+                                self._GetUsernameFromGnsUid(msg.player_id),
+                                self._IntToBoolean(msg.state.cheated)
                             ))
 
                     # level status
@@ -213,23 +218,23 @@ Cheated: {}, Rank: {}\n
 Map Profile\nType: {}, Name: {}, Md5: {}, Level: {}
 Statistica:\nPoints: {}, Lifes: {}, LifeBouns: {}, LevelBouns: {}, TimeElapsed: {}, StartPoints: {}
 """.format(
-                            GetUsernameFromGnsUid(self._mClientsMap, msg.player_id),
-                            IntToBoolean(msg.cheated), msg.rank,
+                            self._GetUsernameFromGnsUid(msg.player_id),
+                            self._IntToBoolean(msg.cheated), msg.rank,
 
-                            MapTypeToString(msg.bmap.bmap_type),
+                            self._MapTypeToString(msg.bmap.bmap_type),
                             msg.bmap.map_name,
-                            FormatMd5(msg.bmap.map_md5),
+                            self._FormatMd5(msg.bmap.map_md5),
                             msg.bmap.map_level,
 
                             msg.points, msg.lifes, msg.lifeBouns, msg.levelBouns, msg.timeElapsed, msg.startPoints
                         ))
                     elif opcode == BmmoProto.opcode.countdown_msg:
                         self._mOutputHelper.Print("[Countdown] {}\nSender: {}\nMap: {}\nRestart: {}\nForce restart: {}".format(
-                            CountdownTypeToString(msg.cd_type),
-                            GetUsernameFromGnsUid(self._mClientsMap, msg.sender),
-                            FormatMd5(msg.for_map),
-                            IntToBoolean(msg.restart_level),
-                            IntToBoolean(msg.force_restart)
+                            self._CountdownTypeToString(msg.cd_type),
+                            self._GetUsernameFromGnsUid(msg.sender),
+                            self._FormatMd5(msg.for_map),
+                            self._IntToBoolean(msg.restart_level),
+                            self._IntToBoolean(msg.force_restart)
                         ))
 
 
@@ -238,7 +243,7 @@ Statistica:\nPoints: {}, Lifes: {}, LifeBouns: {}, LevelBouns: {}, TimeElapsed: 
         self._mBmmoClient.Stop()
         while self._mBmmoClient.GetStatus() != BmmoClient.ModuleStatus.Stopped:
             time.sleep(0.01)
-        self._mOutputHelper.Print("[ContextWorker] BmmoClient exited...")
+        self._mOutputHelper.Print("[ContextWorker] BmmoClient exited.")
 
         # notify dead
         self._mCtxDeadMutex.acquire()

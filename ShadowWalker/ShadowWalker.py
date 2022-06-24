@@ -1,6 +1,7 @@
 import BmmoContext
 import OutputHelper
 import GetchHelper
+import time
 
 mOutputHelper = OutputHelper.OutputHelper()
 mOutputHelper.Print("ShadowWalker")

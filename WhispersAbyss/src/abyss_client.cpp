@@ -48,6 +48,9 @@ namespace WhispersAbyss {
 		Bmmo::DeleteCachedMessage(&mRecvMsg);
 		Bmmo::DeleteCachedMessage(&mSendMsg);
 
+		if (mTdStop.joinable())
+			mTdStop.join();
+
 		mOutput->Printf("[Abyss-#%ld] Connection instance disposed.", mIndex);
 	}
 
@@ -352,7 +355,7 @@ namespace WhispersAbyss {
 
 		if (mSteamConnection != k_HSteamNetConnection_Invalid) {
 			mOutput->Printf("[Abyss-#%ld] Actively closing connection...", mIndex);
-			smSteamSockets->CloseConnection(mSteamConnection, 0, "Goodbye from WhispersAbyss", true);
+			smSteamSockets->CloseConnection(mSteamConnection, 0, "Goodbye from WhispersAbyss", false);
 			//assert(connection == this->connection_);
 			FuckValve::UnregisterClient(mSteamConnection);
 			mSteamConnection = k_HSteamNetConnection_Invalid;

@@ -3,11 +3,11 @@ language python;
 namespace bmmo.data_struct;
 
 // assume:
-// bool -> uint8
-// int -> int32
-alias valvegns_player_uuid uint64;
-alias bool uint8;
-alias int int32;
+// bpbool -> uint8
+// bpint -> int32
+alias valvegns_player_uuid uint32;
+alias bpbool uint8;
+alias bpint int32;
 
 // ============= basic msg chapter
 
@@ -74,7 +74,7 @@ msg level_finish_msg : reliable {
     float timeElapsed;
 
     int32 startPoints,currentLevel;
-    bool cheated;
+    bpbool cheated;
 }
 
 // ============= v3.1 cheat update chapter
@@ -93,8 +93,8 @@ struct bmmo_version {
     uint8 build;
 }
 msg login_request_v2_msg : reliable {
-    string nickname;
     bmmo_version version;
+    string nickname;
     uint8 cheated;
 }
 
@@ -155,8 +155,8 @@ msg owned_ball_state_v2_msg : reliable {
 }
 
 msg login_request_v3_msg : reliable {
-    string nickname;
     bmmo_version version;
+    string nickname;
     uint8 cheated;
     uint8 uuid tuple 16;
 }
@@ -178,10 +178,10 @@ msg level_finish_v2_msg : reliable {
     float timeElapsed;
 
     int32 startPoints;
-    bool cheated;
+    bpbool cheated;
     
     map bmap;
-    int rank;
+    bpint rank;
 }
 
 // ============= v3.2 op permission update chapter
