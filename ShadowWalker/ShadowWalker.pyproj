@@ -28,6 +28,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="BmmoProto.py" />
+    <Compile Include="GetchHelper.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="OutputHelper.py">
       <SubType>Code</SubType>
     </Compile>

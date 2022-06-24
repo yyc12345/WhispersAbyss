@@ -31,7 +31,8 @@ class BmmoClient:
         self._mTdSender = None
         self._mTdRecver = None
 
-        self._Output = output
+        self._mOutput = output
+        self._mOutput.Print("[BmmoClient] Initialized.")
 
     def Start(self, host: str, port: int):
         # check requirements and change status
@@ -46,17 +47,19 @@ class BmmoClient:
         try:
             # start socket and thread
             self._mConn.connect((host, port))
-            self._mTdSender = threading.Thread(target = _SendWorker, args = (self, ))
+            self._mTdSender = threading.Thread(target = self._SendWorker)
             self._mTdSender.start()
-            self._mTdRecver = threading.Thread(target = _RecvWorker, args = (self, ))
+            self._mTdRecver = threading.Thread(target = self._RecvWorker)
             self._mTdRecver.start()
-        except:
+        except Exception as e:
             # call stop
+            self._mOutput.Print("[BmmoClient] Fail to start.\nReason: {}".format(e))
             self.Stop()
         else:
             self._mStatusMutex.acquire()
             self._mStatus = ModuleStatus.Running
             self._mStatusMutex.release()
+            self._mOutput.Print("[BmmoClient] Started.")
 
     def Stop(self):
         # check requirements and change status
@@ -69,8 +72,10 @@ class BmmoClient:
             return
 
         # stop socket
+        self._mOutput.Print("[BmmoClient] Closing connection...")
         self._mConn.close();
         # stop thread
+        self._mOutput.Print("[BmmoClient] Stopping threads...")
         if self._mTdSender is not None:
             self._mTdSender.join()
             self._mTdSender = None
@@ -81,6 +86,7 @@ class BmmoClient:
         self._mStatusMutex.acquire()
         self._mStatus = ModuleStatus.Stopped
         self._mStatusMutex.release()
+        self._mOutput.Print("[BmmoClient] Stopped.")
 
     def GetStatus(self):
         self._mStatusMutex.acquire()
@@ -141,6 +147,7 @@ class BmmoClient:
             cache_status = self._mStatus
             self._mStopCtxMutex.release()
             if cache_status == ModuleStatus.Stopping:
+                self._mOutput.Print("[BmmoClient] Sender detected stop status.")
                 break
             if cache_status != ModuleStatus.Running:
                 time.sleep(0.01)
@@ -164,7 +171,7 @@ class BmmoClient:
                 try:
                     msg.serialize(ss)
                 except:
-                    self._Output.Print("[BmmoClient] Error when serializing msg.")
+                    self._mOutput.Print("[BmmoClient] Error when serializing msg.")
                     continue
 
                 # get essential data
@@ -175,13 +182,13 @@ class BmmoClient:
                 # send header
                 ec = self._SocketSendHelper(struct.pack("II", raw_data_len, is_reliable))
                 if not ec:
-                    self._Output.Print("[BmmoClient] Error when sending mesg header.")
+                    self._mOutput.Print("[BmmoClient] Error when sending mesg header.")
                     self.Stop()
                     break
                 # send body
                 ec = self._SocketSendHelper(raw_data)
                 if not ec:
-                    self._Output.Print("[BmmoClient] Error when sending mesg body.")
+                    self._mOutput.Print("[BmmoClient] Error when sending mesg body.")
                     self.Stop()
                     break
 
@@ -194,6 +201,7 @@ class BmmoClient:
             cache_status = self._mStatus
             self._mStopCtxMutex.release()
             if cache_status == ModuleStatus.Stopping:
+                self._mOutput.Print("[BmmoClient] Recver detected stop status.")
                 break
             if cache_status != ModuleStatus.Running:
                 time.sleep(0.01)
@@ -202,7 +210,7 @@ class BmmoClient:
             # read header
             (ec, header) = self._mConn.recv(8)
             if not ec:
-                self._Output.Print("[BmmoClient] Error when receving msg header.")
+                self._mOutput.Print("[BmmoClient] Error when receving msg header.")
                 self.Stop()
                 break
 
@@ -212,7 +220,7 @@ class BmmoClient:
             # read body and write into clean ss
             (ec, body) = self._mConn.recv(raw_data_len)
             if not ec:
-                self._Output.Print("[BmmoClient] Error when receving msg body.")
+                self._mOutput.Print("[BmmoClient] Error when receving msg body.")
                 self.Stop()
                 break
 
@@ -224,10 +232,10 @@ class BmmoClient:
             try:
                 msg = BmmoProto.uniform_deserialize(ss)
             except:
-                self._Output.Print("[BmmoClient] Error when deserializing msg.")
+                self._mOutput.Print("[BmmoClient] Error when deserializing msg.")
                 continue
             if msg is None:
-                self._Output.Print("[BmmoClient] Unknow msg opcode.")
+                self._mOutput.Print("[BmmoClient] Unknow msg opcode.")
                 continue
 
             self._mRecvMsgMutex.acquire()

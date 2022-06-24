@@ -4,210 +4,243 @@ import OutputHelper
 import threading
 import time
 
-# ============= Basic Instance =============
-mOutputHelper = OutputHelper.OutputHelper()
-mBmmoClient = BmmoClient.BmmoClient(mOutputHelper)
 
-# ============= Useful Funcs =============
-def GetUsernameFromGnsUid(maps: dict, uid: int) -> str:
-    if uid == 0:
-        return "[Server]"
-    else:
-        player_entity = maps.get(msg.player_id, None)
-        if player_entity is None:
-            return "[Unknow]"
-        else:
-            return player_entity.nickname
-
-def CountdownTypeToString(cdtype: int) -> str:
-    if cdtype == BmmoProto.countdown_type.CountdownType_Go:
-        return "Go!"
-    elif cdtype == BmmoProto.countdown_type.CountdownType_1:
-        return "1"
-    elif cdtype == BmmoProto.countdown_type.CountdownType_2:
-        return "2"
-    elif cdtype == BmmoProto.countdown_type.CountdownType_3:
-        return "3"
-    else:
-        return "Unknow"
-
-def MapTypeToString(mtp: int) -> str:
-    if mtp == BmmoProto.map_type.UnknowType:
-        return "Unknow"
-    elif mtp == BmmoProto.map_type.UnknowType:
-        return "Original"
-    elif mtp == BmmoProto.map_type.UnknowType:
-        return "Custom"
-    else:
-        return "Unknow"
-
-def FormatMd5(md5: tuple):
-    return ''.join('{:0>2x}'.format(item) for item in md5)
-
-def FormatUuid(uuid: tuple):
-    slash = (3, 5, 7, 9)
-    return ''.join(('{:0>2x}-' if idx in slash else '{:0>2x}').format(item) for idx, item in enumerate(uuid))
-
-def IntToBoolean(num: int) -> bool:
-    return num != 0
-
-# ============= Context Worker =============
 class ContextCommandType:
     NoneCmd = 0
     ExitCmd = 1
     ChatCmd = 2
     ProfileCmd = 3
 
+class BmmoContext:
+    def __init__(self, output: OutputHelper.OutputHelper, host: str, port: int, username: str):
+        self._mOutputHelper = output
+        self._mBmmoClient = BmmoClient.BmmoClient(output)
 
-mCtxCmd = ContextCommandType.NoneCmd
-mCtxCmdArgs = None
-mCtxCmdMutex = threading.Lock()
-mCtxDead = False
-mCtxDeadMutex = threading.Lock()
-def ContextWorker():
-    # preparing useful data
-    mClientsMap = {}
+        self._mCtxCmd = ContextCommandType.NoneCmd
+        self._mCtxCmdArgs = None
+        self._mCtxCmdMutex = threading.Lock()
+        self._mCtxDead = False
+        self._mCtxDeadMutex = threading.Lock()
 
-    mClientVersion = BmmoProto.bmmo_version()
-    mClientVersion.major = 3
-    mClientVersion.minor = 2
-    mClientVersion.subminor = 5
-    mClientVersion.stage = BmmoProto.bmmo_stage.Beta
-    mClientVersion.build = 7
+        self._mClientsMap = {}
 
-    # start client and send request message
-    mBmmoClient.Start("127.0.0.1", 6172)
-    req_msg = BmmoProto.login_request_v3_msg()
-    req_msg.nickname = "SwungMoe"
-    req_msg.version = mClientVersion
-    req_msg.cheated = 1
-    for i in range(16):
-        req_msg.uuid.append(114)
+        self._mClientVersion = BmmoProto.bmmo_version()
+        self._mClientVersion.major = 3
+        self._mClientVersion.minor = 2
+        self._mClientVersion.subminor = 5
+        self._mClientVersion.stage = BmmoProto.bmmo_stage.Beta
+        self._mClientVersion.build = 7
 
-    # loop
-    while True:
-        time.sleep(0.01)
+        self._mCfgHost = host
+        self._mCfgPort = port
+        self._mCfgUsername = username
 
-        # analyse command
-        mCtxCmdMutex.acquire()
-        cache_cmd = mCtxCmd
-        cache_args = mCtxCmdArgs
-        mCtxCmd = ContextCommandType.NoneCmd
-        mCtxCmdArgs = None
-        mCtxCmdMutex.release()
+        self._mTdCtx = threading.Thread(target = self._ContextWorker)
+        self._mTdCtx.start()
 
-        sent_msg = None
-        if cache_cmd == ContextCommandType.NoneCmd:
-            pass
-        elif cache_cmd == ContextCommandType.ExitCmd:
-            break
-        elif cache_cmd == ContextCommandType.ChatCmd:
-            sent_msg = BmmoProto.chat_msg()
-            sent_msg.player_id = 0
-            sent_msg.chat_content = cache_args[0]
-        elif cache_cmd == ContextCommandType.ProfileCmd:
-            mOutputHelper.Print("[ContextWorker] This is profile")
+    # ============= Export Interface =============
+    def IsDead(self) -> bool:
+        self._mCtxDeadMutex.acquire()
+        cache = self._mCtxDead
+        self._mCtxDeadMutex.release()
+        return cache
+
+    def WaitExit(self):
+        self._mTdCtx.join()
+
+    def SetCommand(self, cmd_type: int, cmd_args: tuple):
+        self._mCtxCmdMutex.acquire()
+        self._mCtxCmd = cmd_type
+        self._mCtxCmdArgs = cmd_args
+        self._mCtxCmdMutex.release()
+
+    # ============= Useful Funcs =============
+    def GetUsernameFromGnsUid(self, maps: dict, uid: int) -> str:
+        if uid == 0:
+            return "[Server]"
         else:
-            mOutputHelper.Print("[ContextWorker] Unknow command")
+            player_entity = maps.get(msg.player_id, None)
+            if player_entity is None:
+                return "[Unknow]"
+            else:
+                return player_entity.nickname
 
-        client_status = mBmmoClient.GetStatus()
-        # check client alive
-        if client_status == BmmoClient.ModuleStatus.Stopped:
-            break
+    def CountdownTypeToString(self, cdtype: int) -> str:
+        if cdtype == BmmoProto.countdown_type.CountdownType_Go:
+            return "Go!"
+        elif cdtype == BmmoProto.countdown_type.CountdownType_1:
+            return "1"
+        elif cdtype == BmmoProto.countdown_type.CountdownType_2:
+            return "2"
+        elif cdtype == BmmoProto.countdown_type.CountdownType_3:
+            return "3"
+        else:
+            return "Unknow"
 
-        # process message ony when client started
-        if client_status == BmmoClient.ModuleStatus.Running:
-            # send
-            if sent_msg is not None:
-                mBmmoClient.Send(sent_msg)
+    def MapTypeToString(self, mtp: int) -> str:
+        if mtp == BmmoProto.map_type.UnknowType:
+            return "Unknow"
+        elif mtp == BmmoProto.map_type.UnknowType:
+            return "Original"
+        elif mtp == BmmoProto.map_type.UnknowType:
+            return "Custom"
+        else:
+            return "Unknow"
 
-            # recv
-            msg_list = mBmmoClient.Recv()
-            for msg in msg_list:
-                opcode = msg.get_opcode()
+    def FormatMd5(self, md5: tuple):
+        return ''.join('{:0>2x}'.format(item) for item in md5)
 
-                # self login logout
-                if opcode == BmmoProto.opcode.login_denied_msg:
-                    mOutputHelper.Print("[User] Login failed.")
-                    break
-                elif opcode == BmmoProto.opcode.login_accepted_v2_msg:
-                    mOutputHelper.Print("[User] Login successfully.")
+    def FormatUuid(self, uuid: tuple):
+        slash = (3, 5, 7, 9)
+        return ''.join(('{:0>2x}-' if idx in slash else '{:0>2x}').format(item) for idx, item in enumerate(uuid))
 
-                    # update clients data
-                    mClientsMap.clear()
-                    for entity in msg.data:
-                        mClientsMap[entity.uuid] = entity
+    def IntToBoolean(self, num: int) -> bool:
+        return num != 0
 
-                # chat
-                elif opcode == BmmoProto.opcode.chat_msg:
-                    username = GetUsernameFromGnsUid(mClientsMap, msg.player_id)
-                    mOutputHelper.Print("[Chat] <{}, {}> {}".format(msg.player_id, username, msg.chat_content))
+    # ============= Context Worker =============
+    def _ContextWorker(self):
+        # start client and send request message
+        self._mBmmoClient.Start(self._mCfgHost, self._mCfgPort)
+        req_msg = BmmoProto.login_request_v3_msg()
+        req_msg.nickname = self._mCfgUsername
+        req_msg.version = self._mClientVersion
+        req_msg.cheated = 1
+        for i in range(16):
+            req_msg.uuid.append(114)
+        self._mBmmoClient.Send(req_msg)
+        
+        # loop
+        while True:
+            time.sleep(0.01)
 
-                # other players login logout
-                elif opcode == BmmoProto.opcode.player_connected_v2_msg:
-                    mOutputHelper.Print("[User] {} join the server.".format(msg.data.nickname))
-                    # update clients data
-                    mClientsMap[msg.data.uuid] = msg.data
-                elif opcode == BmmoProto.opcode.player_connected_v2_msg:
-                    mOutputHelper.Print("[User] {} leave the server.".format(
-                        GetUsernameFromGnsUid(mClientsMap, msg.player_id)
-                    ))
-                    # update clients data
-                    del mClientsMap[msg.player_id]
-                elif opcode == BmmoProto.opcode.player_kicked_msg:
-                    mOutputHelper.Print("[User] {} kicked by {}. Reason: {}".format(
-                        msg.kicked_player_name,
-                        msg.executor_name,
-                        msg.reason
-                    ))
-                    if IntToBoolean(msg.crashed):
-                        mOutputHelper.Print("[User] {} client is crashed.".format(msg.kicked_player_name))
+            # analyse command
+            self._mCtxCmdMutex.acquire()
+            cache_cmd = self._mCtxCmd
+            cache_args = self._mCtxCmdArgs
+            self._mCtxCmd = ContextCommandType.NoneCmd
+            self._mCtxCmdArgs = None
+            self._mCtxCmdMutex.release()
 
-                # cheat update
-                elif opcode == BmmoProto.opcode.owned_cheat_state_msg:
-                    if IntToBoolean(msg.state.notify):
-                        mOutputHelper.Print("[Cheat] {} now in cheat status: {}.".format(
-                            GetUsernameFromGnsUid(mClientsMap, msg.player_id),
-                            IntToBoolean(msg.state.cheated)
+            sent_msg = None
+            if cache_cmd == ContextCommandType.NoneCmd:
+                pass
+            elif cache_cmd == ContextCommandType.ExitCmd:
+                self._mOutputHelper.Print("[ContextWorker] Actively exit")
+                break
+            elif cache_cmd == ContextCommandType.ChatCmd:
+                sent_msg = BmmoProto.chat_msg()
+                sent_msg.player_id = 0
+                sent_msg.chat_content = cache_args[0]
+            elif cache_cmd == ContextCommandType.ProfileCmd:
+                self._mOutputHelper.Print("[ContextWorker] This is profile")
+            else:
+                self._mOutputHelper.Print("[ContextWorker] Unknow command")
+
+            client_status = self._mBmmoClient.GetStatus()
+            # check client alive
+            if client_status == BmmoClient.ModuleStatus.Stopped:
+                break
+
+            # process message ony when client started
+            if client_status == BmmoClient.ModuleStatus.Running:
+                # send
+                if sent_msg is not None:
+                    self._mBmmoClient.Send(sent_msg)
+
+                # recv
+                msg_list = self._mBmmoClient.Recv()
+                for msg in msg_list:
+                    opcode = msg.get_opcode()
+
+                    # self login logout
+                    if opcode == BmmoProto.opcode.login_denied_msg:
+                        self._mOutputHelper.Print("[User] Login failed.")
+                        break
+                    elif opcode == BmmoProto.opcode.login_accepted_v2_msg:
+                        self._mOutputHelper.Print("[User] Login successfully.")
+
+                        # update clients data
+                        self._mClientsMap.clear()
+                        for entity in msg.data:
+                            self._mClientsMap[entity.uuid] = entity
+
+                    # chat
+                    elif opcode == BmmoProto.opcode.chat_msg:
+                        username = GetUsernameFromGnsUid(self._mClientsMap, msg.player_id)
+                        self._mOutputHelper.Print("[Chat] <{}, {}> {}".format(msg.player_id, username, msg.chat_content))
+
+                    # other players login logout
+                    elif opcode == BmmoProto.opcode.player_connected_v2_msg:
+                        self._mOutputHelper.Print("[User] {} join the server.".format(msg.data.nickname))
+                        # update clients data
+                        self._mClientsMap[msg.data.uuid] = msg.data
+                    elif opcode == BmmoProto.opcode.player_connected_v2_msg:
+                        self._mOutputHelper.Print("[User] {} leave the server.".format(
+                            GetUsernameFromGnsUid(self._mClientsMap, msg.player_id)
                         ))
-
-                    # update cheat status
-                    mClientsMap[msg.player_id].cheated = msg.state.cheated
-                elif opcode == BmmoProto.opcode.owned_cheat_toggle_msg:
-                    if IntToBoolean(msg.state.notify):
-                        mOutputHelper.Print("[Cheat] {} order everyone go into cheat status: {}.".format(
-                            GetUsernameFromGnsUid(mClientsMap, msg.player_id),
-                            IntToBoolean(msg.state.cheated)
+                        # update clients data
+                        del self._mClientsMap[msg.player_id]
+                    elif opcode == BmmoProto.opcode.player_kicked_msg:
+                        self._mOutputHelper.Print("[User] {} kicked by {}. Reason: {}".format(
+                            msg.kicked_player_name,
+                            msg.executor_name,
+                            msg.reason
                         ))
+                        if IntToBoolean(msg.crashed):
+                            self._mOutputHelper.Print("[User] {} client is crashed.".format(msg.kicked_player_name))
 
-                # level status
-                elif opcode == BmmoProto.opcode.level_finish_v2_msg:
-                    mOutputHelper.Print("""[Level] {} finish level.\n
+                    # cheat update
+                    elif opcode == BmmoProto.opcode.owned_cheat_state_msg:
+                        if IntToBoolean(msg.state.notify):
+                            self._mOutputHelper.Print("[Cheat] {} now in cheat status: {}.".format(
+                                GetUsernameFromGnsUid(self._mClientsMap, msg.player_id),
+                                IntToBoolean(msg.state.cheated)
+                            ))
+
+                        # update cheat status
+                        self._mClientsMap[msg.player_id].cheated = msg.state.cheated
+                    elif opcode == BmmoProto.opcode.owned_cheat_toggle_msg:
+                        if IntToBoolean(msg.state.notify):
+                            self._mOutputHelper.Print("[Cheat] {} order everyone go into cheat status: {}.".format(
+                                GetUsernameFromGnsUid(self._mClientsMap, msg.player_id),
+                                IntToBoolean(msg.state.cheated)
+                            ))
+
+                    # level status
+                    elif opcode == BmmoProto.opcode.level_finish_v2_msg:
+                        self._mOutputHelper.Print("""[Level] {} finish level.\n
 Cheated: {}, Rank: {}\n
 Map Profile\nType: {}, Name: {}, Md5: {}, Level: {}
 Statistica:\nPoints: {}, Lifes: {}, LifeBouns: {}, LevelBouns: {}, TimeElapsed: {}, StartPoints: {}
 """.format(
-                        GetUsernameFromGnsUid(mClientsMap, msg.player_id),
-                        IntToBoolean(msg.cheated), msg.rank,
+                            GetUsernameFromGnsUid(self._mClientsMap, msg.player_id),
+                            IntToBoolean(msg.cheated), msg.rank,
 
-                        MapTypeToString(msg.bmap.bmap_type),
-                        msg.bmap.map_name,
-                        FormatMd5(msg.bmap.map_md5),
-                        msg.bmap.map_level,
+                            MapTypeToString(msg.bmap.bmap_type),
+                            msg.bmap.map_name,
+                            FormatMd5(msg.bmap.map_md5),
+                            msg.bmap.map_level,
 
-                        msg.points, msg.lifes, msg.lifeBouns, msg.levelBouns, msg.timeElapsed, msg.startPoints
-                    ))
-                elif opcode == BmmoProto.opcode.countdown_msg:
-                    mOutputHelper.Print("[Countdown] {}\nSender: {}\nMap: {}\nRestart: {}\nForce restart: {}".format(
-                        CountdownTypeToString(msg.cd_type),
-                        GetUsernameFromGnsUid(mClientsMap, msg.sender),
-                        FormatMd5(msg.for_map),
-                        IntToBoolean(msg.restart_level),
-                        IntToBoolean(msg.force_restart)
-                    ))
+                            msg.points, msg.lifes, msg.lifeBouns, msg.levelBouns, msg.timeElapsed, msg.startPoints
+                        ))
+                    elif opcode == BmmoProto.opcode.countdown_msg:
+                        self._mOutputHelper.Print("[Countdown] {}\nSender: {}\nMap: {}\nRestart: {}\nForce restart: {}".format(
+                            CountdownTypeToString(msg.cd_type),
+                            GetUsernameFromGnsUid(self._mClientsMap, msg.sender),
+                            FormatMd5(msg.for_map),
+                            IntToBoolean(msg.restart_level),
+                            IntToBoolean(msg.force_restart)
+                        ))
 
 
-    # exit safely
-    mBmmoClient.Stop()
-    while mBmmoClient.GetStatus() != BmmoClient.ModuleStatus.Stopped:
-        time.sleep(0.01)
+        # exit safely
+        self._mOutputHelper.Print("[ContextWorker] Waiting BmmoClient exit...")
+        self._mBmmoClient.Stop()
+        while self._mBmmoClient.GetStatus() != BmmoClient.ModuleStatus.Stopped:
+            time.sleep(0.01)
+        self._mOutputHelper.Print("[ContextWorker] BmmoClient exited...")
+
+        # notify dead
+        self._mCtxDeadMutex.acquire()
+        self._mCtxDead = True
+        self._mCtxDeadMutex.release()
