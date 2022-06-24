@@ -3,7 +3,7 @@ import BmmoProto
 import OutputHelper
 import threading
 import time
-
+import tabulate
 
 class ContextCommandType:
     NoneCmd = 0
@@ -78,11 +78,11 @@ class BmmoContext:
             return "Unknow"
 
     def _MapTypeToString(self, mtp: int) -> str:
-        if mtp == BmmoProto.map_type.UnknowType:
+        if mtp == BmmoProto.map_type.UnknownType:
             return "Unknow"
-        elif mtp == BmmoProto.map_type.UnknowType:
+        elif mtp == BmmoProto.map_type.Original:
             return "Original"
-        elif mtp == BmmoProto.map_type.UnknowType:
+        elif mtp == BmmoProto.map_type.Custom:
             return "Custom"
         else:
             return "Unknow"
@@ -99,6 +99,19 @@ class BmmoContext:
 
     def _IntToBoolean(self, num: int) -> bool:
         return num != 0
+
+    def _GenerateUserSheet(self) -> str:
+        table = []
+
+        for i in self._mClientsMap.values():
+            row = (
+                i.nickname, 
+                self._FormatGnsUuid(i.uuid), 
+                str(self._IntToBoolean(i.cheated))
+            )
+            table.append(row)
+
+        return tabulate.tabulate(table, headers = ("Username", "Gns UUID", "Is Cheated"), tablefmt="grid")
 
     # ============= Context Worker =============
     def _ContextWorker(self):
@@ -135,9 +148,7 @@ class BmmoContext:
                 sent_msg.player_id = 0
                 sent_msg.chat_content = cache_args[0]
             elif cache_cmd == ContextCommandType.ProfileCmd:
-                user_ls = 'Name\tUUID\tIs Cheated\n'
-                user_ls += '\n'.join('{}\t{}\t{}'.format(i.nickname, self._FormatGnsUuid(i.uuid), i.cheated) for i in self._mClientsMap.values())
-                self._mOutputHelper.Print("[ContextWorker] User list:\n" + user_ls)
+                self._mOutputHelper.Print("[ContextWorker] User list:\n" + self._GenerateUserSheet())
             else:
                 self._mOutputHelper.Print("[ContextWorker] Unknow command")
 
@@ -179,7 +190,7 @@ class BmmoContext:
                         self._mOutputHelper.Print("[User] {} joined the server.".format(msg.data.nickname))
                         # update clients data
                         self._mClientsMap[msg.data.uuid] = msg.data
-                    elif opcode == BmmoProto.opcode.player_connected_v2_msg:
+                    elif opcode == BmmoProto.opcode.player_disconnected_msg:
                         self._mOutputHelper.Print("[User] {} left the server.".format(
                             self._GetUsernameFromGnsUid(msg.player_id)
                         ))
@@ -213,8 +224,8 @@ class BmmoContext:
 
                     # level status
                     elif opcode == BmmoProto.opcode.level_finish_v2_msg:
-                        self._mOutputHelper.Print("""[Level] {} finish level.\n
-Cheated: {}, Rank: {}\n
+                        self._mOutputHelper.Print("""[Level] {} finish level.
+Cheated: {}, Rank: {}
 Map Profile\nType: {}, Name: {}, Md5: {}, Level: {}
 Statistica:\nPoints: {}, Lifes: {}, LifeBouns: {}, LevelBouns: {}, TimeElapsed: {}, StartPoints: {}
 """.format(
@@ -226,7 +237,7 @@ Statistica:\nPoints: {}, Lifes: {}, LifeBouns: {}, LevelBouns: {}, TimeElapsed: 
                             self._FormatMd5(msg.bmap.map_md5),
                             msg.bmap.map_level,
 
-                            msg.points, msg.lifes, msg.lifeBouns, msg.levelBouns, msg.timeElapsed, msg.startPoints
+                            msg.points, msg.lifes, msg.lifeBonus, msg.levelBonus, msg.timeElapsed, msg.startPoints
                         ))
                     elif opcode == BmmoProto.opcode.countdown_msg:
                         self._mOutputHelper.Print("[Countdown] {}\nSender: {}\nMap: {}\nRestart: {}\nForce restart: {}".format(

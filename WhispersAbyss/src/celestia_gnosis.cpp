@@ -12,7 +12,7 @@ namespace WhispersAbyss {
 		mRecvMsg(), mSendMsg(),
 		mTdRecv(&CelestiaGnosis::RecvWorker, this),
 		mTdSend(&CelestiaGnosis::SendWorker, this) {
-		mOutput->Printf("[Gnosis-#%ld] Connection instance created.", mIndex);
+		mOutput->Printf("[Gnosis-#%" PRIu64 "] Connection instance created.", mIndex);
 	}
 
 	CelestiaGnosis::~CelestiaGnosis() {
@@ -24,7 +24,7 @@ namespace WhispersAbyss {
 		Bmmo::DeleteCachedMessage(&mRecvMsg);
 		Bmmo::DeleteCachedMessage(&mSendMsg);
 
-		mOutput->Printf("[Gnosis-#%ld] Connection instance disposed.", mIndex);
+		mOutput->Printf("[Gnosis-#%" PRIu64 "] Connection instance disposed.", mIndex);
 	}
 
 	void CelestiaGnosis::Stop() {
@@ -41,9 +41,9 @@ namespace WhispersAbyss {
 		mSendMsgMutex.unlock();
 
 		if (msg_size >= WARNING_CAPACITY)
-			mOutput->Printf("[Gnosis-#%ld] Message list reach warning level: %d", mIndex, msg_size);
+			mOutput->Printf("[Gnosis-#%" PRIu64 "] Message list reach warning level: %d", mIndex, msg_size);
 		if (msg_size >= NUKE_CAPACITY) {
-			mOutput->Printf("[Gnosis-#%ld] Message list reach nuke level: %d. This gnosis will be nuked!!!", mIndex, msg_size);
+			mOutput->Printf("[Gnosis-#%" PRIu64 "] Message list reach nuke level: %d. This gnosis will be nuked!!!", mIndex, msg_size);
 			mSocket.close();
 		}
 	}
@@ -86,19 +86,19 @@ namespace WhispersAbyss {
 			// write data
 			asio::write(mSocket, asio::buffer(&length, sizeof(uint32_t)), ec);
 			if (ec) {
-				mOutput->Printf("[Gnosis-#%ld] Fail to write header: %s", mIndex, ec.message().c_str());
+				mOutput->Printf("[Gnosis-#%" PRIu64 "] Fail to write header: %s", mIndex, ec.message().c_str());
 				mSocket.close();
 				return;
 			}
 			asio::write(mSocket, asio::buffer(&is_reliable, sizeof(uint32_t)), ec);
 			if (ec) {
-				mOutput->Printf("[Gnosis-#%ld] Fail to write is_reliable: %s", mIndex, ec.message().c_str());
+				mOutput->Printf("[Gnosis-#%" PRIu64 "] Fail to write is_reliable: %s", mIndex, ec.message().c_str());
 				mSocket.close();
 				return;
 			}
 			asio::write(mSocket, asio::buffer(msg->GetData(), length), ec);
 			if (ec) {
-				mOutput->Printf("[Gnosis-#%ld] Fail to write body: %s", mIndex, ec.message().c_str());
+				mOutput->Printf("[Gnosis-#%" PRIu64 "] Fail to write body: %s", mIndex, ec.message().c_str());
 				mSocket.close();
 				return;
 			}
@@ -119,7 +119,7 @@ namespace WhispersAbyss {
 			asio::read(mSocket, asio::buffer(&mMsgHeader, sizeof(uint32_t)), ec);
 			if (!ec) {
 				if (mMsgHeader >= MAX_MSG_SIZE) {
-					mOutput->Printf("[Gnosis-#%ld] Header exceed MAX_MSG_SIZE.", mIndex);
+					mOutput->Printf("[Gnosis-#%" PRIu64 "] Header exceed MAX_MSG_SIZE.", mIndex);
 					mSocket.close();
 					return;
 				} else {
@@ -127,7 +127,7 @@ namespace WhispersAbyss {
 					;
 				}
 			} else {
-				mOutput->Printf("[Gnosis-#%ld] Fail to read header: %s", mIndex, ec.message().c_str());
+				mOutput->Printf("[Gnosis-#%" PRIu64 "] Fail to read header: %s", mIndex, ec.message().c_str());
 				mSocket.close();
 				return;
 			}
@@ -136,7 +136,7 @@ namespace WhispersAbyss {
 			asio::read(mSocket, asio::buffer(&mMsgReliable, sizeof(uint32_t)), ec);
 			if (!ec) {
 				if (mMsgReliable >= MAX_MSG_SIZE) {
-					mOutput->Printf("[Gnosis-#%ld] Header exceed MAX_MSG_SIZE.", mIndex);
+					mOutput->Printf("[Gnosis-#%" PRIu64 "] Header exceed MAX_MSG_SIZE.", mIndex);
 					mSocket.close();
 					return;
 				} else {
@@ -144,7 +144,7 @@ namespace WhispersAbyss {
 					;
 				}
 			} else {
-				mOutput->Printf("[Gnosis-#%ld] Fail to read is_reliable: %s", mIndex, ec.message().c_str());
+				mOutput->Printf("[Gnosis-#%" PRIu64 "] Fail to read is_reliable: %s", mIndex, ec.message().c_str());
 				mSocket.close();
 				return;
 			}
@@ -163,7 +163,7 @@ namespace WhispersAbyss {
 
 				// for next reading
 			} else {
-				mOutput->Printf("[Gnosis-#%ld] Fail to read body: %s", mIndex, ec.message().c_str());
+				mOutput->Printf("[Gnosis-#%" PRIu64 "] Fail to read body: %s", mIndex, ec.message().c_str());
 				mSocket.close();
 				return;
 			}

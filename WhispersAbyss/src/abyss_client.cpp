@@ -40,7 +40,7 @@ namespace WhispersAbyss {
 		mTdCtx = std::thread(&AbyssClient::CtxWorker, this);
 		mTdConnect = std::thread(&AbyssClient::ConnectWorker, this);
 
-		mOutput->Printf("[Abyss-#%ld] Connection instance created.", mIndex);
+		mOutput->Printf("[Abyss-#%" PRIu64 "] Connection instance created.", mIndex);
 	}
 
 	AbyssClient::~AbyssClient() {
@@ -51,7 +51,7 @@ namespace WhispersAbyss {
 		if (mTdStop.joinable())
 			mTdStop.join();
 
-		mOutput->Printf("[Abyss-#%ld] Connection instance disposed.", mIndex);
+		mOutput->Printf("[Abyss-#%" PRIu64 "] Connection instance disposed.", mIndex);
 	}
 
 	void AbyssClient::Init(OutputHelper* output) {
@@ -65,7 +65,7 @@ namespace WhispersAbyss {
 		// initialize steam lib
 		SteamDatagramErrMsg err_msg;
 		if (!GameNetworkingSockets_Init(nullptr, err_msg))
-			output->FatalError("[Abyss] GameNetworkingSockets_Init failed.  %s", err_msg);
+			output->FatalError("[Abyss] GameNetworkingSockets_Init failed. %s", err_msg);
 		SteamNetworkingUtils()->SetDebugOutputFunction(
 			k_ESteamNetworkingSocketsDebugOutputType_Msg,
 			&FuckValve::ProcSteamDebugOutput
@@ -159,12 +159,16 @@ namespace WhispersAbyss {
 
 	void AbyssClient::ConnectWorker() {
 		// split url
+		std::string address, port;
+		//size_t urlpos = mServerUrl.rfind(":");
+		//std::string address = (urlpos == mServerUrl.rfind("::") + 1) ? mServerUrl : mServerUrl.substr(0, urlpos);
+		//std::string port = (urlpos == -1 || (urlpos + 1) == mServerUrl.length() || urlpos == mServerUrl.rfind("::") + 1) ? "26676" : mServerUrl.substr(urlpos + 1);
 		size_t urlpos = mServerUrl.find(":");
-		std::string address = mServerUrl.substr(0, urlpos);
-		std::string port = mServerUrl.substr(urlpos + 1);
+		address = mServerUrl.substr(0, urlpos);
+		port = mServerUrl.substr(urlpos + 1);
 
 		// solve ip
-		mOutput->Printf("[Abyss-#%ld] Resolving server address \"%s : %s\"", mIndex, address.c_str(), port.c_str());
+		mOutput->Printf("[Abyss-#%" PRIu64 "] Resolving server address %s:%s", mIndex, address.c_str(), port.c_str());
 		asio::io_context ioContext;
 		asio::ip::udp::resolver udpResolver(ioContext);
 		asio::error_code ec;
@@ -172,8 +176,9 @@ namespace WhispersAbyss {
 		if (!ec) {
 			for (const auto& i : results) {
 				auto endpoint = i.endpoint();
-				std::string connection_string = endpoint.address().to_string() + ":" + std::to_string(endpoint.port());
-				mOutput->Printf("[Abyss-#%ld] Trying %s...", mIndex, connection_string.c_str());
+				std::string connection_string;
+				connection_string = endpoint.address().to_string() + ":" + std::to_string(endpoint.port());
+				mOutput->Printf("[Abyss-#%" PRIu64 "] Trying %s...", mIndex, connection_string.c_str());
 				if (ConnectSteam(&connection_string)) {
 					std::lock_guard<std::mutex> lockGuard(mStatusMutex);
 					mStatus = ModuleStatus::Running;
@@ -184,7 +189,7 @@ namespace WhispersAbyss {
 			// failed
 			// actively call stop
 			Stop();
-			mOutput->Printf("[Abyss-#%ld] Fail to resolve hostname.", mIndex);
+			mOutput->Printf("[Abyss-#%" PRIu64 "] Fail to resolve hostname.", mIndex);
 		}
 
 		ioContext.stop();
@@ -217,9 +222,9 @@ namespace WhispersAbyss {
 		mSendMsgMutex.unlock();
 
 		if (msg_size >= WARNING_CAPACITY)
-			mOutput->Printf("[Abyss-#%ld] Message list reach warning level: %d", mIndex, msg_size);
+			mOutput->Printf("[Abyss-#%" PRIu64 "] Message list reach warning level: %d", mIndex, msg_size);
 		if (msg_size >= NUKE_CAPACITY) {
-			mOutput->FatalError("[Abyss-#%ld] Message list reach nuke level: %d. This abyss will be nuked!!!", mIndex, msg_size);
+			mOutput->FatalError("[Abyss-#%" PRIu64 "] Message list reach nuke level: %d. This abyss will be nuked!!!", mIndex, msg_size);
 		}
 	}
 
@@ -235,17 +240,17 @@ namespace WhispersAbyss {
 		switch (state) {
 			case k_ESteamNetworkingConnectionState_Connecting:
 			{
-				mOutput->Printf("[Abyss-#%ld] Connecting...", mIndex);
+				mOutput->Printf("[Abyss-#%" PRIu64 "] Connecting...", mIndex);
 				break;
 			}
 			case k_ESteamNetworkingConnectionState_Connected:
 			{
-				mOutput->Printf("[Abyss-#%ld] Connected.", mIndex);
+				mOutput->Printf("[Abyss-#%" PRIu64 "] Connected.", mIndex);
 				break;
 			}
 			case k_ESteamNetworkingConnectionState_ClosedByPeer:
 			{
-				mOutput->Printf("[Abyss-#%ld] Connection Lost. Reason %s(%d)",
+				mOutput->Printf("[Abyss-#%" PRIu64 "] Connection Lost. Reason %s(%d)",
 					mIndex,
 					pInfo->m_info.m_szEndDebug,
 					pInfo->m_info.m_eEndReason);
@@ -256,7 +261,7 @@ namespace WhispersAbyss {
 			}
 			case k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
 			{
-				mOutput->Printf("[Abyss-#%ld] Local Error. Reason %s(%d)",
+				mOutput->Printf("[Abyss-#%" PRIu64 "] Local Error. Reason %s(%d)",
 					mIndex,
 					pInfo->m_info.m_szEndDebug,
 					pInfo->m_info.m_eEndReason);
@@ -267,7 +272,7 @@ namespace WhispersAbyss {
 			}
 			case k_ESteamNetworkingConnectionState_None:
 			{
-				mOutput->Printf("[Abyss-#%ld] Now in Disconnected status.", mIndex);
+				mOutput->Printf("[Abyss-#%" PRIu64 "] Now in Disconnected status.", mIndex);
 				break;
 			}
 			case k_ESteamNetworkingConnectionState_FindingRoute:
@@ -318,7 +323,7 @@ namespace WhispersAbyss {
 
 		int msg_count = smSteamSockets->ReceiveMessagesOnConnection(mSteamConnection, mSteamMessages, STEAM_MSG_CAPACITY);
 		if (msg_count < 0)
-			mOutput->FatalError("[Abyss-#%ld] Get minus number in getting GNS message list.", mIndex);
+			mOutput->FatalError("[Abyss-#%" PRIu64 "] Get minus number in getting GNS message list.", mIndex);
 		else if (msg_count > 0) {
 			// process message
 			for (int i = 0; i < msg_count; ++i) {
@@ -354,7 +359,7 @@ namespace WhispersAbyss {
 		std::lock_guard<std::mutex> lockGuard(mSteamMutex);
 
 		if (mSteamConnection != k_HSteamNetConnection_Invalid) {
-			mOutput->Printf("[Abyss-#%ld] Actively closing connection...", mIndex);
+			mOutput->Printf("[Abyss-#%" PRIu64 "] Actively closing connection...", mIndex);
 			smSteamSockets->CloseConnection(mSteamConnection, 0, "Goodbye from WhispersAbyss", false);
 			//assert(connection == this->connection_);
 			FuckValve::UnregisterClient(mSteamConnection);

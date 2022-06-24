@@ -184,9 +184,8 @@ class BmmoClient:
                 # serialize
                 try:
                     msg.serialize(ss)
-                    print(ss.getvalue())
                 except Exception as e:
-                    self._mOutput.Print("[BmmoClient] Error when serializing msg.\nReason: {}".format(e))
+                    self._mOutput.Print("[BmmoClient] Error when serializing msg.\nReason: {}\nUnfinished message palyload: {}".format(e, ss.getvalue()))
                     traceback.print_exc()
                     continue
 
@@ -246,11 +245,10 @@ class BmmoClient:
 
             # deserialize msg
             try:
-                print(ss.getvalue())
                 ss.seek(io.SEEK_SET, 0)
                 msg = BmmoProto.uniform_deserialize(ss)
             except Exception as e:
-                self._mOutput.Print("[BmmoClient] Error when deserializing msg.\nReason: {}".format(e))
+                self._mOutput.Print("[BmmoClient] Error when deserializing msg.\nReason: {}\nError message payload: {}".format(e, ss.getvalue()))
                 traceback.print_exc()
                 continue
             if msg is None:

@@ -59,6 +59,11 @@ void MainWorker(
 		}
 	}
 
+	// stop celestia server first to reject more incoming connetions
+	output.Printf("Stoping celestia...");
+	server.Stop();
+	output.Printf("Celestia stoped.");
+
 	output.Printf("Stoping bridges...");
 	// actively order stop
 	for (auto it = conn_pairs.begin(); it != conn_pairs.end(); ++it) {
@@ -73,10 +78,6 @@ void MainWorker(
 		} else std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
 	output.Printf("All bridges stoped.");
-
-	output.Printf("Stoping celestia...");
-	server.Stop();
-	output.Printf("Celestia stoped.");
 
 	output.Printf("Stoping abyss...");
 	WhispersAbyss::AbyssClient::Dispose();
