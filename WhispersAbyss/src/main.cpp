@@ -6,6 +6,8 @@
 #include <conio.h>
 
 void MainWorker(
+	const char* serverUrl,
+	uint16_t acceptPort,
 	std::atomic_bool& signalStop,
 	WhispersAbyss::OutputHelper& output) {
 
@@ -17,7 +19,7 @@ void MainWorker(
 	// start server and client and waiting for initialize
 	// start abyss client first, because abyss client need more time to init
 	output.Printf("Preparing celestia...");
-	WhispersAbyss::CelestiaServer server(&output, (uint16_t)6172u);
+	WhispersAbyss::CelestiaServer server(&output, acceptPort);
 	server.Start();
 	while (!server.mIsRunning.load());
 	output.Printf("Celestia started.");
@@ -33,7 +35,7 @@ void MainWorker(
 		// getting new tcp connections
 		server.GetConnections(&conns);
 		while (conns.begin() != conns.end()) {
-			WhispersAbyss::LeyLinesBridge* bridge = new WhispersAbyss::LeyLinesBridge(&output, "p.okbc.st:26676", *conns.begin());
+			WhispersAbyss::LeyLinesBridge* bridge = new WhispersAbyss::LeyLinesBridge(&output, serverUrl, *conns.begin());
 			cached_pairs.push_back(bridge);
 			conns.pop_front();
 		}
@@ -93,7 +95,25 @@ int main(int argc, char* argv[]) {
 	puts("Now... Is the time for my second coming.");
 	puts("");
 	puts("======");
+	puts("");
 
+	// ========== Check Parameter ==========
+	if (argc != 3) {
+		puts("Wrong arguments.");
+		puts("Syntax: WhispersAbyss [accept_port] [server_address]");
+		puts("Program will exit. See README.md for more detail about commandline arguments.");
+		return 0;
+	}
+	char* argsServerUrl = argv[2];
+	long int argsAcceptPort = strtoul(argv[1], NULL, 10);
+	if (argsAcceptPort == LONG_MAX || argsAcceptPort == LONG_MIN || argsAcceptPort > 65535u) {
+		puts("Wrong arguments. Port value is illegal.");
+		puts("Syntax: WhispersAbyss [accept_port] [server_address]");
+		puts("Program will exit. Please specific a correct port number.");
+		return 0;
+	}
+
+	// ==========Real Work ==========
 	// allocate signal for worker
 	std::atomic_bool signalStop;
 	signalStop.store(false);
@@ -103,6 +123,8 @@ int main(int argc, char* argv[]) {
 	// start worker
 	std::thread tdMainWorker(
 		&MainWorker,
+		argsServerUrl,
+		6172,
 		std::ref(signalStop),
 		std::ref(outputHelper)
 	);

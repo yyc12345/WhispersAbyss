@@ -1,7 +1,7 @@
 # Whispers Abyss
 
 First, let we say loudly together: Fuck Valve Gns.  
-A simple protocol converter. It mainly served for the protocol convertion of [Swung0x48/BallanceMMO](https://github.com/Swung0x48/BallanceMMO). Because my project [yyc12345/BallanceStalker](https://code.blumia.cn/yyc12345/BallanceStalker) couldn't use any Valve Gns code due to the shitty C# support of Godot. I need convert all Valve Gns message into plain message over a normal TCP connection. This is what this peoject do.
+A simple protocol converter. It mainly served for the protocol convertion of [Swung0x48/BallanceMMO](https://github.com/Swung0x48/BallanceMMO). Because my project [yyc12345/BallanceStalker](https://code.blumia.cn/yyc12345/BallanceStalker) couldn't use any Valve Gns code due to the shitty C# support of Godot. I need convert all Valve Gns message into plain message over a normal TCP connection. This is what this peoject do. There is an important thing you should be knowing. TCP is a reliable protocol, but its performance is pretty bad, especially in a bad network. So usually, WhispersAbyss should be run together with the client which want to use WhispersAbyss. Then, all connections are over local loop back, and you will get the best performance. Due to this feature, if you run WhispersAbyss on a server then connect it from other place, it will cause huge performance loss.
 
 This project consist of 2 parts. WhispersAbyss is the main converter written in C++, and ShadowWalker is a tiny BMMO client written in Python. ShadowWalker only implement some basic functions of BMMO protocol, such as login, logout and etc. It is used as a tester for WhispersAbyss and check whether WhispersAbyss can work normally.
 
@@ -9,8 +9,9 @@ This project consist of 2 parts. WhispersAbyss is the main converter written in 
 
 ### WhispersAbyss
 
-Syntax: `WhispersAbyss [server_address]`
+Syntax: `WhispersAbyss [accept_port] [server_address]`
 
+Accept port is the port which will accept TCP connections, for example, `6172`.  
 Server address is the combination of host and port, for example, `bmmmo.server.net:26675`.  
 WhispersAbyss is a console application. You can see some real-time output after starting this application.  
 You can press `h` on keyboard directly to see more useful options.  
@@ -18,8 +19,9 @@ Press `q` to exit application.
 
 ### ShadowWalker
 
-Syntax: `python3 ShadowWalker.py [username] [uuid]`
+Syntax: `python3 ShadowWalker.py [port] [username] [uuid]`
 
+Port is pointed to the acceptor port of WhispersAbyss.  
 Username is in-game name.  
 Uuid is an unique identifier for each user. Its ususally have the format like `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`.  
 Just like WhispersAbyss, after starting client, you can press `h` for help and press `q` to exit program.

@@ -12,7 +12,7 @@ class ContextCommandType:
     ProfileCmd = 3
 
 class BmmoContext:
-    def __init__(self, output: OutputHelper.OutputHelper, host: str, port: int, username: str):
+    def __init__(self, output: OutputHelper.OutputHelper, host: str, port: int, username: str, uuid: tuple):
         self._mOutputHelper = output
         self._mBmmoClient = BmmoClient.BmmoClient(output)
 
@@ -34,6 +34,7 @@ class BmmoContext:
         self._mCfgHost = host
         self._mCfgPort = port
         self._mCfgUsername = username
+        self._mCfgUuid = uuid
 
         self._mTdCtx = threading.Thread(target = self._ContextWorker)
         self._mTdCtx.start()
@@ -121,8 +122,7 @@ class BmmoContext:
         req_msg.nickname = self._mCfgUsername
         req_msg.version = self._mClientVersion
         req_msg.cheated = 1
-        for i in range(16):
-            req_msg.uuid.append(114)
+        req_msg.uuid = self._mCfgUuid
         self._mBmmoClient.Send(req_msg)
         
         # loop

@@ -11,6 +11,9 @@
     <OutputPath>.</OutputPath>
     <Name>ShadowWalker</Name>
     <RootNamespace>ShadowWalker</RootNamespace>
+    <LaunchProvider>Standard Python launcher</LaunchProvider>
+    <CommandLineArguments>6172 yyc12345 11451400-1140-1140-1140-114514114514</CommandLineArguments>
+    <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
