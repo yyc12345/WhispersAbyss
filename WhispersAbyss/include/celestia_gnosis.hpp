@@ -12,6 +12,8 @@ namespace WhispersAbyss {
 
 	class CelestiaGnosis {
 	public:
+		uint64_t mIndex;
+
 		CelestiaGnosis(OutputHelper* output, uint64_t index, asio::ip::tcp::socket socket);
 		~CelestiaGnosis();
 
@@ -20,7 +22,6 @@ namespace WhispersAbyss {
 		void Recv(std::deque<Bmmo::Message*>* manager_list);
 		bool IsConnected();
 	private:
-		uint64_t mIndex;
 		OutputHelper* mOutput;
 		asio::ip::tcp::socket mSocket;
 

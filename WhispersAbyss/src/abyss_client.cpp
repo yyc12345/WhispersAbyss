@@ -17,7 +17,7 @@ namespace WhispersAbyss {
 	AbyssClient::AbyssClient(OutputHelper* output, const char* server) :
 		mIndex(smIndexDistributor++),
 
-		mStatus(ModuleStatus::Initializing), mStatusMutex(),
+		mStatus(ModuleStatus::Ready), mStatusMutex(),
 		mStopCtx(false),
 
 		mOutput(output),
@@ -36,7 +36,7 @@ namespace WhispersAbyss {
 		// when creating instance, we should connect server immediately
 		// start connect worker and notify main worker
 		mStopCtx.store(false);
-		mStatus = ModuleStatus::Ready;
+		mStatus = ModuleStatus::Initializing;
 		mTdCtx = std::thread(&AbyssClient::CtxWorker, this);
 		mTdConnect = std::thread(&AbyssClient::ConnectWorker, this);
 

@@ -16,6 +16,7 @@ namespace WhispersAbyss {
 
 	class AbyssClient {
 	public:
+		uint64_t mIndex;
 		ModuleStatus mStatus;
 		std::mutex mStatusMutex;
 		ModuleStatus GetConnStatus();
@@ -35,7 +36,6 @@ namespace WhispersAbyss {
 		void HandleSteamConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* pInfo);
 
 	private:
-		uint64_t mIndex;
 		OutputHelper* mOutput;
 		std::mutex mRecvMsgMutex, mSendMsgMutex;
 		std::deque<Bmmo::Message*> mRecvMsg, mSendMsg;

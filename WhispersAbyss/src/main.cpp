@@ -9,6 +9,7 @@ void MainWorker(
 	const char* serverUrl,
 	uint16_t acceptPort,
 	std::atomic_bool& signalStop,
+	std::atomic_bool& signalProfile,
 	WhispersAbyss::OutputHelper& output) {
 
 	// init steam works for abyss client
@@ -27,10 +28,18 @@ void MainWorker(
 	// core processor
 	std::deque<WhispersAbyss::CelestiaGnosis*> conns;
 	std::deque<WhispersAbyss::LeyLinesBridge*> conn_pairs, cached_pairs;
+	bool order_profile = false;
 	while (true) {
 		// check exit
 		if (signalStop.load()) break;
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+		// get whether need profile
+		order_profile = false;
+		order_profile = signalProfile.exchange(order_profile);
+		if (order_profile) {
+			output.Printf("Start collecting profile...");
+		}
 
 		// getting new tcp connections
 		server.GetConnections(&conns);
@@ -55,7 +64,11 @@ void MainWorker(
 		}
 
 		// move back conn_pairs
+		// and check profile if need
 		while (cached_pairs.begin() != cached_pairs.end()) {
+			if (order_profile) {
+				(*cached_pairs.begin())->ReportStatus();
+			}
 			conn_pairs.push_back(*cached_pairs.begin());
 			cached_pairs.pop_front();
 		}
@@ -115,7 +128,7 @@ int main(int argc, char* argv[]) {
 
 	// ==========Real Work ==========
 	// allocate signal for worker
-	std::atomic_bool signalStop;
+	std::atomic_bool signalStop, signalProfile;
 	signalStop.store(false);
 
 	WhispersAbyss::OutputHelper outputHelper;
@@ -126,6 +139,7 @@ int main(int argc, char* argv[]) {
 		argsServerUrl,
 		6172,
 		std::ref(signalStop),
+		std::ref(signalProfile),
 		std::ref(outputHelper)
 	);
 
@@ -139,6 +153,11 @@ int main(int argc, char* argv[]) {
 			{
 				signalStop.store(true);
 				goto exit_program;	// exit switch and while
+			}
+			case 'p':
+			{
+				signalProfile.store(true);
+				break;
 			}
 			default:
 			{

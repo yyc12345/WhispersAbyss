@@ -195,7 +195,10 @@ class BmmoContext:
                             self._GetUsernameFromGnsUid(msg.player_id)
                         ))
                         # update clients data
-                        del self._mClientsMap[msg.player_id]
+                        if msg.player_id in self._mClientsMap:
+                            del self._mClientsMap[msg.player_id]
+                        else:
+                            self._mOutputHelper.Print("[Warning] {} is not existed.".format(self._FormatGnsUuid(msg.player_id)))
                     elif opcode == BmmoProto.opcode.player_kicked_msg:
                         self._mOutputHelper.Print("[User] {} kicked by {}. Reason: {}".format(
                             msg.kicked_player_name,
@@ -214,7 +217,10 @@ class BmmoContext:
                             ))
 
                         # update cheat status
-                        self._mClientsMap[msg.player_id].cheated = msg.state.cheated
+                        if msg.player_id in self._mClientsMap:
+                            self._mClientsMap[msg.player_id].cheated = msg.state.cheated
+                        else:
+                            self._mOutputHelper.Print("[Warning] {} is not existed.".format(self._FormatGnsUuid(msg.player_id)))
                     elif opcode == BmmoProto.opcode.owned_cheat_toggle_msg:
                         if self._IntToBoolean(msg.state.notify):
                             self._mOutputHelper.Print("[Cheat] {} order everyone go into cheat status: {}.".format(

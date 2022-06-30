@@ -2,16 +2,19 @@
 
 namespace WhispersAbyss {
 
+	uint64_t LeyLinesBridge::smIndexDistributor = 0;
+
 	LeyLinesBridge::LeyLinesBridge(OutputHelper* output, const char* server, CelestiaGnosis* celestia) :
+		mIndex(smIndexDistributor++),
 		mOutput(output),
 		mCelestiaClient(celestia),
 		mAbyssClient(NULL),
 		mTdStop(), mTdRunningDetector(),
-		mStatus(ModuleStatus::Initializing), mStatusMutex(),
+		mStatus(ModuleStatus::Ready), mStatusMutex(),
 		mMessages(),
 		mCelestiaCounter(0), mAbyssCounter(0) {
 		mAbyssClient = new AbyssClient(output, server);
-		mStatus = ModuleStatus::Ready;
+		mStatus = ModuleStatus::Initializing;
 		mTdRunningDetector = std::thread(&LeyLinesBridge::DetectRunning, this);
 	}
 
@@ -33,7 +36,15 @@ namespace WhispersAbyss {
 	void LeyLinesBridge::ActiveStop() {
 		{
 			std::lock_guard<std::mutex> lockGuard(mStatusMutex);
-			if (mStatus != ModuleStatus::Running) return;
+			switch (mStatus) {
+				case WhispersAbyss::ModuleStatus::Ready:
+				case WhispersAbyss::ModuleStatus::Initializing:
+				case WhispersAbyss::ModuleStatus::Running:
+					break;	// allow run stop
+				case WhispersAbyss::ModuleStatus::Stopping:
+				case WhispersAbyss::ModuleStatus::Stopped:
+					return;	// not allowed to run stop
+			}
 			mStatus = ModuleStatus::Stopping;
 		}
 
@@ -90,7 +101,7 @@ namespace WhispersAbyss {
 
 			{	// leave when any client stopped before successfully running
 				std::lock_guard<std::mutex> lockGuard(mStatusMutex);
-				if (mStatus != ModuleStatus::Ready) return;
+				if (mStatus != ModuleStatus::Initializing) return;
 			}
 			if (mCelestiaClient->IsConnected()) break;
 		}
@@ -99,7 +110,7 @@ namespace WhispersAbyss {
 
 			{	// leave when any client stopped before successfully running
 				std::lock_guard<std::mutex> lockGuard(mStatusMutex);
-				if (mStatus != ModuleStatus::Ready) return;
+				if (mStatus != ModuleStatus::Initializing) return;
 			}
 			if (mAbyssClient->GetConnStatus() == ModuleStatus::Running) break;
 		}
@@ -111,9 +122,14 @@ namespace WhispersAbyss {
 	}
 
 	void LeyLinesBridge::ReportStatus() {
-		// todo: finish status reporter
-		mCelestiaCounter.load();
-		mAbyssCounter.load();
+		// status reporter
+		mOutput->Printf("[Bridge#%" PRIu64 "] Client#%" PRIu64 ": %" PRIu64 " packages. Server#%" PRIu64 ": %" PRIu64 " packages.",
+			mIndex,
+			mCelestiaClient->mIndex,
+			mCelestiaCounter.load(),
+			mAbyssClient->mIndex,
+			mAbyssCounter.load()
+		);
 	}
 
 }

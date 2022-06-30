@@ -6,6 +6,8 @@ namespace WhispersAbyss {
 
 	class LeyLinesBridge {
 	public:
+		static uint64_t smIndexDistributor;
+
 		ModuleStatus mStatus;
 		std::mutex mStatusMutex;
 		ModuleStatus GetConnStatus();
@@ -18,6 +20,7 @@ namespace WhispersAbyss {
 
 		void ReportStatus();
 	private:
+		uint64_t mIndex;
 		OutputHelper* mOutput;
 		CelestiaGnosis* mCelestiaClient;
 		AbyssClient* mAbyssClient;
