@@ -183,16 +183,16 @@ class BmmoClient:
                 ss.truncate(0)
                 # serialize
                 try:
-                    msg.serialize(ss)
+                    msg.Serialize(ss)
                 except Exception as e:
-                    self._mOutput.Print("[BmmoClient] Error when serializing msg.\nReason: {}\nUnfinished message palyload: {}".format(e, ss.getvalue()))
+                    self._mOutput.Print("[BmmoClient] Error when serializing msg.\nReason: {}\nUnfinished message payload: {}".format(e, ss.getvalue()))
                     traceback.print_exc()
                     continue
 
                 # get essential data
                 raw_data = ss.getvalue()
                 raw_data_len = ss.tell()
-                is_reliable = 1 if msg.get_reliable() else 0
+                is_reliable = 1 if msg.GetIsReliable() else 0
 
                 # send header
                 ec = self._SocketSendHelper(struct.pack("II", raw_data_len, is_reliable))
@@ -246,7 +246,7 @@ class BmmoClient:
             # deserialize msg
             try:
                 ss.seek(io.SEEK_SET, 0)
-                msg = BmmoProto.uniform_deserialize(ss)
+                msg = BmmoProto._UniformDeserialize(ss)
             except Exception as e:
                 self._mOutput.Print("[BmmoClient] Error when deserializing msg.\nReason: {}\nError message payload: {}".format(e, ss.getvalue()))
                 traceback.print_exc()
