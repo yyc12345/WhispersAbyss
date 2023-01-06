@@ -29,7 +29,7 @@ class BmmoContext:
         self._mClientVersion.minor = 4
         self._mClientVersion.subminor = 4
         self._mClientVersion.stage = BmmoProto.bmmo_stage.Beta
-        self._mClientVersion.build = 7
+        self._mClientVersion.build = 8
 
         self._mCfgHost = host
         self._mCfgPort = port
@@ -171,10 +171,10 @@ class BmmoContext:
                     # self login logout
                     if opcode == BmmoProto._OpCode.simple_action_msg:
                         if msg.action == BmmoProto.action_type.LoginDenied:
-                            self._mOutputHelper.Print("[User] Login failed.")
+                            self._mOutputHelper.Print("[User] Login failed.", "yellow")
                         break
                     elif opcode == BmmoProto._OpCode.login_accepted_v3_msg:
-                        self._mOutputHelper.Print("[User] Login successfully. Online player count: {}".format(len(msg.online_players)))
+                        self._mOutputHelper.Print("[User] Login successfully. Online player count: {}".format(len(msg.online_players)), "yellow")
 
                         # update clients data
                         self._mClientsMap.clear()
@@ -184,30 +184,30 @@ class BmmoContext:
                     # chat
                     elif opcode == BmmoProto._OpCode.chat_msg:
                         username = self._GetUsernameFromGnsUid(msg.data.someone_id)
-                        self._mOutputHelper.Print("[Chat] <{}, {}> {}".format(self._FormatGnsUuid(msg.data.someone_id), username, msg.data.chat_content))
+                        self._mOutputHelper.Print("[Chat] <{}, {}> {}".format(self._FormatGnsUuid(msg.data.someone_id), username, msg.data.chat_content), "green")
 
                     # other players login logout
                     elif opcode == BmmoProto._OpCode.player_connected_v2_msg:
-                        self._mOutputHelper.Print("[User] {} joined the server.".format(msg.data.nickname))
+                        self._mOutputHelper.Print("[User] {} joined the server.".format(msg.player.nickname), "yellow")
                         # update clients data
-                        self._mClientsMap[msg.data.uuid] = msg.data
+                        self._mClientsMap[msg.player.uuid] = msg.player
                     elif opcode == BmmoProto._OpCode.player_disconnected_msg:
                         self._mOutputHelper.Print("[User] {} left the server.".format(
-                            self._GetUsernameFromGnsUid(msg.player_id)
-                        ))
+                            self._GetUsernameFromGnsUid(msg.connection_id)
+                        ), "yellow")
                         # update clients data
-                        if msg.player_id in self._mClientsMap:
-                            del self._mClientsMap[msg.player_id]
+                        if msg.connection_id in self._mClientsMap:
+                            del self._mClientsMap[msg.connection_id]
                         else:
-                            self._mOutputHelper.Print("[Warning] {} is not existed.".format(self._FormatGnsUuid(msg.player_id)))
+                            self._mOutputHelper.Print("{} is not existed.".format(self._FormatGnsUuid(msg.connection_id)))
                     elif opcode == BmmoProto._OpCode.player_kicked_msg:
                         self._mOutputHelper.Print("[User] {} kicked by {}. Reason: {}".format(
                             msg.kicked_player_name,
                             msg.executor_name,
                             msg.reason
-                        ))
+                        ), "yellow")
                         if self._IntToBoolean(msg.crashed):
-                            self._mOutputHelper.Print("[User] {} client is crashed.".format(msg.kicked_player_name))
+                            self._mOutputHelper.Print("[User] {} client is crashed.".format(msg.kicked_player_name), "yellow")
 
                     # cheat update
                     elif opcode == BmmoProto._OpCode.owned_cheat_state_msg:
@@ -215,19 +215,19 @@ class BmmoContext:
                             self._mOutputHelper.Print("[Cheat] {} now in cheat status: {}.".format(
                                 self._GetUsernameFromGnsUid(msg.player_id),
                                 self._IntToBoolean(msg.state.cheated)
-                            ))
+                            ), "cyan")
 
                         # update cheat status
                         if msg.player_id in self._mClientsMap:
                             self._mClientsMap[msg.player_id].cheated = msg.state.cheated
                         else:
-                            self._mOutputHelper.Print("[Warning] {} is not existed.".format(self._FormatGnsUuid(msg.player_id)))
+                            self._mOutputHelper.Print("{} is not existed.".format(self._FormatGnsUuid(msg.player_id)))
                     elif opcode == BmmoProto._OpCode.owned_cheat_toggle_msg:
                         if self._IntToBoolean(msg.state.notify):
                             self._mOutputHelper.Print("[Cheat] {} order everyone go into cheat status: {}.".format(
                                 self._GetUsernameFromGnsUid(msg.player_id),
                                 self._IntToBoolean(msg.state.cheated)
-                            ))
+                            ), "cyan")
 
                     # level status
                     elif opcode == BmmoProto._OpCode.level_finish_v2_msg:
@@ -245,7 +245,7 @@ Statistica:\nPoints: {}, Lifes: {}, LifeBouns: {}, LevelBouns: {}, TimeElapsed: 
                             msg.bmap.map_level,
 
                             msg.points, msg.lifes, msg.lifeBonus, msg.levelBonus, msg.timeElapsed, msg.startPoints
-                        ))
+                        ), "magenta")
                     elif opcode == BmmoProto._OpCode.countdown_msg:
                         self._mOutputHelper.Print("[Countdown] {}\nSender: {}\nMap: {}\nRestart: {}\nForce restart: {}".format(
                             self._CountdownTypeToString(msg.cd_type),
@@ -253,7 +253,7 @@ Statistica:\nPoints: {}, Lifes: {}, LifeBouns: {}, LevelBouns: {}, TimeElapsed: 
                             self._FormatMd5(msg.for_map),
                             self._IntToBoolean(msg.restart_level),
                             self._IntToBoolean(msg.force_restart)
-                        ))
+                        ), "magenta")
 
 
         # exit safely

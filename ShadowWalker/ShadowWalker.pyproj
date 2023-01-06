@@ -12,8 +12,11 @@
     <Name>ShadowWalker</Name>
     <RootNamespace>ShadowWalker</RootNamespace>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>6172 yyc12345 11451400-1140-1140-1140-114514114514</CommandLineArguments>
+    <CommandLineArguments>6172 ShadowPower 11451400-1140-1140-1140-114514114514</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
+    <IsWindowsApplication>False</IsWindowsApplication>
+    <InterpreterId>Global|PythonCore|3.9</InterpreterId>
+    <Environment>FORCE_COLOR=1</Environment>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -38,6 +41,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="ShadowWalker.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <InterpreterReference Include="Global|PythonCore|3.9" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

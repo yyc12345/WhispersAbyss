@@ -5,6 +5,10 @@ A simple protocol converter. It mainly served for the protocol convertion of [Sw
 
 This project consist of 2 parts. WhispersAbyss is the main converter written in C++, and ShadowWalker is a tiny BMMO client written in Python. ShadowWalker only implement some basic functions of BMMO protocol, such as login, logout and etc. It is used as a tester for WhispersAbyss and check whether WhispersAbyss can work normally.
 
+## Abandoned Project
+
+This project no longer update anymore. The protocol of BMMO is volatile and can not be concluded as a stable principle. Have a good day, every Ballance players. I am not play Ballance technology anymore.
+
 ## Usage
 
 ### WhispersAbyss
