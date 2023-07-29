@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <thread>
 #include <type_traits>
+#include <algorithm>
 
 namespace WhispersAbyss {
 
@@ -31,92 +32,91 @@ namespace WhispersAbyss {
 #pragma region ModuleStateMachine
 
 	ModuleStateMachine::ModuleStateMachine(ModuleStates::ModuleStates_t init_state) :
-		mState(init_state), mIsInTransition(false), mStateMutex() {
+		mState(init_state), mIsInTransition(false), mTransitionCount(0u), mSWCount(0u), mStateMutex() {
 	}
 	ModuleStateMachine::~ModuleStateMachine() {}
 
-	bool ModuleStateMachine::IsInState(ModuleStates::ModuleStates_t expected_state) {
-		std::lock_guard<std::mutex> locker(mStateMutex);
-		if (mIsInTransition) return false;
-		return TestState(expected_state);
-	}
-
-	void ModuleStateMachine::SpinUntil(ModuleStates::ModuleStates_t expected_state) {
+	void ModuleStateMachine::SpinUntil(ModuleStates::ModuleStates_t state) {
 		while (true) {
 			mStateMutex.lock();
 
-			if (mIsInTransition || !TestState(expected_state)) {
-				mStateMutex.unlock();
-				std::this_thread::sleep_for(SPIN_INTERVAL);
-			} else {
+			// 不在状态转换时，没有排队的状态转换，且符合状态，才返回
+			if (!mIsInTransition && mTransitionCount == 0u && TestState(state)) {
 				mStateMutex.unlock();
 				return;
+			} else {
+				mStateMutex.unlock();
+				std::this_thread::sleep_for(SPIN_INTERVAL);
 			}
 		}
 	}
 
-	bool ModuleStateMachine::BeginTransition(ModuleStates::ModuleStates_t state_condition) {
-		//// test if not fufill requirement. exit instantly.
-		//{
-		//	std::lock_guard<std::mutex> locker(mStateMutex);
-		//	if (!TestState(state_condition)) {
-		//		return false;
-		//	}
-		//}
-
-		//// current state fufill. waiting transition lock
-		//{
-		//	std::lock(mTransitionMutex, mStateMutex);
-		//	std::lock_guard<std::mutex> locker(mStateMutex, std::adopt_lock);
-		//	// test requirement again. because the state may changed
-		//	if (!TestState(state_condition)) {
-		//		mTransitionMutex.unlock();
-		//		return false;
-		//	}
-
-		//	// leave a locked mTransitionMutex alone
-		//	mIsInTransition = true;
-		//}
-		//return true;
-
-		/*while (true) {
-			mStateMutex.lock();
-
-			if (!TestState(state_condition)) {
-				mStateMutex.unlock();
-				return false;
-			}
-
-			if (mIsInTransition) {
-				mStateMutex.unlock();
-				std::this_thread::sleep_for(SPIN_INTERVAL);
-				continue;
-			}
-
-			mIsInTransition = true;
-			mStateMutex.unlock();
-			return true;
-		}*/
-
+	bool ModuleStateMachine::BeginStateBasedWork(ModuleStates::ModuleStates_t state) {
 		std::lock_guard locker(mStateMutex);
-		if (mIsInTransition || !TestState(state_condition)) return false;
 
-		mIsInTransition = true;
-		return true;
+		// 不在状态转换，没有排队的状态转换，状态符合，允许开始
+		if (!mIsInTransition && mTransitionCount == 0u && TestState(state)) {
+			++mSWCount;
+			return true;
+		} else {
+			return false;
+		}
+	}
 
+	void ModuleStateMachine::EndStateBasedWork() {
+		std::lock_guard locker(mStateMutex);
+		// 自减，不要减到0以下。
+		if (mSWCount != 0u) {
+			--mSWCount;
+		}
+	}
+
+	bool ModuleStateMachine::BeginTransition(ModuleStates::ModuleStates_t state) {
+		// 预先检测
+		{
+			std::lock_guard locker(mStateMutex);
+			// 状态不匹配，返回
+			if (!TestState(state)) return false;
+
+			if (!mIsInTransition && mSWCount == 0) {
+				// 不在状态转换，状态符合，且没有基于状态的操作，允许开始
+				mIsInTransition = true;
+				return true;
+			} else {
+				// 排队等待
+				++mTransitionCount;
+			}
+		}
+
+		// 排队等待
+		while (true) {
+			std::this_thread::sleep_for(SPIN_INTERVAL);
+
+			{
+				std::lock_guard locker(mStateMutex);
+
+				// 状态不匹配，返回
+				if (!TestState(state)) return false;
+
+				// 不在状态转换，状态符合，且没有基于状态的操作，允许开始
+				if (!mIsInTransition && mSWCount == 0) {
+					// 自减排队，不要减到0以下。
+					if (mTransitionCount != 0u) {
+						--mTransitionCount;
+					}
+					// 开始运行
+					mIsInTransition = true;
+					return true;
+				}
+				// 否则继续自旋
+			}
+		}
 	}
 
 	void ModuleStateMachine::EndTransition(ModuleStates::ModuleStates_t next_state) {
-		//// test whether in transition
-		//std::lock_guard<std::mutex> locker(mStateMutex);
-		//if (!mIsInTransition) return;
-
-		//// start free locker
-		//std::lock_guard<std::mutex> locker(mTransitionMutex, std::adopt_lock);
-		//if (!IsSingleState(next_state)) throw std::invalid_argument("invalid state. not a single state.");
-		//mState = next_state;
-		//mIsInTransition = false;
 		std::lock_guard<std::mutex> locker(mStateMutex);
+
+		// 检查是否在状态转换中，以及下个状态是否是单状态
 		if (!mIsInTransition) return;
 		if (!IsSingleState(next_state)) throw std::invalid_argument("invalid state. not a single state.");
 
@@ -143,18 +143,18 @@ namespace WhispersAbyss {
 
 #pragma region StateMachineTransition
 
-	StateMachineTransition::StateMachineTransition(ModuleStateMachine& sm, ModuleStates::ModuleStates_t requirement) :
-		mMachine(&sm), mNeedTransition(false), mNextStateSet(false), mNextState(ModuleStates::None) {
-		mNeedTransition = mMachine->BeginTransition(requirement);
+	StateMachineTransition::StateMachineTransition(ModuleStateMachine& sm, ModuleStates::ModuleStates_t state) :
+		mMachine(&sm), mCanTransition(false), mNextStateSet(false), mNextState(ModuleStates::None) {
+		mCanTransition = mMachine->BeginTransition(state);
 	}
 	StateMachineTransition::~StateMachineTransition() {
-		if (!mNeedTransition) return;
+		if (!mCanTransition) return;
 
 		if (!mNextStateSet) mMachine->EndTransition(mMachine->mState);	// keep its original state
 		else mMachine->EndTransition(mNextState);
 	}
-	bool StateMachineTransition::NeedTransition() {
-		return mNeedTransition;
+	bool StateMachineTransition::CanTransition() {
+		return mCanTransition;
 	}
 	void StateMachineTransition::To(ModuleStates::ModuleStates_t state) {
 		if (!mMachine->IsSingleState(state)) throw std::logic_error("combined states is invalid for To()");
@@ -164,13 +164,33 @@ namespace WhispersAbyss {
 
 #pragma endregion
 
+#pragma region StateMachineStateBasedWork
+
+	StateMachineStateBasedWork::StateMachineStateBasedWork(ModuleStateMachine& sm, ModuleStates::ModuleStates_t state) :
+		mMachine(&sm), mCanWork(false) {
+		mCanWork = mMachine->BeginStateBasedWork(state);
+	}
+	StateMachineStateBasedWork::StateMachineStateBasedWork(ModuleStateReporter& reporter, ModuleStates::ModuleStates_t state) :
+		mMachine(reporter.mMachine), mCanWork(false) {
+		mCanWork = mMachine->BeginStateBasedWork(state);
+	}
+	StateMachineStateBasedWork::~StateMachineStateBasedWork() {
+		if (!mCanWork) return;
+		mMachine->EndStateBasedWork();
+	}
+	bool StateMachineStateBasedWork::CanWork() {
+		return mCanWork;
+	}
+
+#pragma endregion
+
+
 #pragma region ModuleStateReporter
 
-	ModuleStateReporter::ModuleStateReporter(ModuleStateMachine& sm) : 
-	mMachine(&sm) {}
+	ModuleStateReporter::ModuleStateReporter(ModuleStateMachine& sm) :
+		mMachine(&sm) {}
 	ModuleStateReporter::~ModuleStateReporter() {}
 
-	bool ModuleStateReporter::IsInState(ModuleStates::ModuleStates_t expected_state) { return mMachine->IsInState(expected_state); }
 	void ModuleStateReporter::SpinUntil(ModuleStates::ModuleStates_t expected_state) { mMachine->SpinUntil(expected_state); }
 
 #pragma endregion
