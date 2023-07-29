@@ -100,6 +100,7 @@
     <ClCompile Include="src\celestia_server.cpp" />
     <ClCompile Include="src\leylines_bridge.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\others_helper.cpp" />
     <ClCompile Include="src\output_helper.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -110,6 +111,7 @@
     <ClInclude Include="include\global_define.hpp" />
     <ClInclude Include="include\leylines_bridge.hpp" />
     <ClInclude Include="include\output_helper.hpp" />
+    <ClInclude Include="include\others_helper.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
