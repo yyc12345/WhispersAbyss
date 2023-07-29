@@ -1,67 +1,117 @@
 #include "../include/celestia_gnosis.hpp"
-#include "../include/global_define.hpp"
-
-#define MAX_MSG_SIZE 2048
 
 namespace WhispersAbyss {
+
+	constexpr const uint32_t MAX_MSG_BODY = 2048u;
 
 	CelestiaGnosis::CelestiaGnosis(OutputHelper* output, uint64_t index, asio::ip::tcp::socket socket) :
 		mIndex(index),
 		mOutput(output), mSocket(std::move(socket)),
 		mRecvMsgMutex(), mSendMsgMutex(),
-		mRecvMsg(), mSendMsg(),
-		mTdRecv(&CelestiaGnosis::RecvWorker, this),
-		mTdSend(&CelestiaGnosis::SendWorker, this) {
+		mRecvMsg(), mSendMsg()
+		/*mTdRecv(&CelestiaGnosis::RecvWorker, this),*/
+		/*mTdSend(&CelestiaGnosis::SendWorker, this)*/ 
+	{
 		mOutput->Printf("[Gnosis-#%" PRIu64 "] Connection instance created.", mIndex);
 	}
 
 	CelestiaGnosis::~CelestiaGnosis() {
-		if (mTdRecv.joinable())
-			mTdRecv.join();
-		if (mTdSend.joinable())
-			mTdSend.join();
-
-		Bmmo::DeleteCachedMessage(&mRecvMsg);
-		Bmmo::DeleteCachedMessage(&mSendMsg);
+		// make sure stopped
+		Stop();
+		mModuleState.SpinUntil(ModuleStates::Stopped);
 
 		mOutput->Printf("[Gnosis-#%" PRIu64 "] Connection instance disposed.", mIndex);
 	}
 
-	void CelestiaGnosis::Stop() {
-		mSocket.close();
+	void CelestiaGnosis::Start() {
+		std::thread([this]() -> void {
+			// start transition
+			StateMachineTransition transition(mModuleState, ModuleStates::Ready);
+			if (!transition.NeedTransition()) return;
+
+			// active sender, recver
+			this->mTdRecv = std::jthread(std::bind(&CelestiaGnosis::RecvWorker, this, std::placeholders::_1));
+			this->mTdSend = std::jthread(std::bind(&CelestiaGnosis::SendWorker, this, std::placeholders::_1));
+
+			mOutput->Printf("[Gnosis-#%" PRIu64 "] Connection instance run.", mIndex);
+
+			// end transition
+			transition.To(ModuleStates::Running);
+		}).detach();
 	}
 
-	void CelestiaGnosis::Send(std::deque<Bmmo::Message*>* manager_list) {
+	void CelestiaGnosis::Stop() {
+		std::thread([this]() -> void {
+			// start transition
+			StateMachineTransition transition(mModuleState, ModuleStates::Ready | ModuleStates::Running);
+			if (!transition.NeedTransition()) return;
+
+			// close socket if it still is opened
+			if (mSocket.is_open()) {
+				mSocket.close();
+			}
+
+			// stop recver and sender
+			if (mTdRecv.joinable()) {
+				mTdRecv.request_stop();
+				mTdRecv.join();
+			}
+			if (mTdSend.joinable()) {
+				mTdSend.request_stop();
+				mTdSend.join();
+			}
+
+			// delete data
+			{
+				std::lock_guard locker(mRecvMsgMutex);
+				DequeOperations::FreeDeque(mRecvMsg);
+			}
+			{
+				std::lock_guard locker(mSendMsgMutex);
+				DequeOperations::FreeDeque(mSendMsg);
+			}
+
+			mOutput->Printf("[Gnosis-#%" PRIu64 "] Connection instance stopped.", mIndex);
+
+			// end transition
+			transition.To(ModuleStates::Stopped);
+		}).detach();
+	}
+
+	void CelestiaGnosis::Send(std::deque<Bmmo::Message*>& manager_list) {
 		size_t msg_size;
 
 		// push data
-		mSendMsgMutex.lock();
-		Bmmo::MoveCachedMessage(manager_list, &mSendMsg);
-		msg_size = mSendMsg.size();	// get size now for following check
-		mSendMsgMutex.unlock();
+		{
+			std::lock_guard locker(mSendMsgMutex);
+			DequeOperations::MoveDeque(manager_list, mSendMsg);
+			msg_size = mSendMsg.size();		// get size now for following check
+		}
 
+		// check data size
+		CheckSize(msg_size);
+	}
+
+	void CelestiaGnosis::Recv(std::deque<Bmmo::Message*>& manager_list) {
+		std::lock_guard locker(mRecvMsgMutex);
+		DequeOperations::MoveDeque(mRecvMsg, manager_list);
+	}
+
+	void CelestiaGnosis::CheckSize(size_t msg_size) {
 		if (msg_size >= WARNING_CAPACITY)
 			mOutput->Printf("[Gnosis-#%" PRIu64 "] Message list reach warning level: %d", mIndex, msg_size);
 		if (msg_size >= NUKE_CAPACITY) {
 			mOutput->Printf("[Gnosis-#%" PRIu64 "] Message list reach nuke level: %d. This gnosis will be nuked!!!", mIndex, msg_size);
-			mSocket.close();
+			Stop();
 		}
 	}
-	void CelestiaGnosis::Recv(std::deque<Bmmo::Message*>* manager_list) {
-		mRecvMsgMutex.lock();
-		Bmmo::MoveCachedMessage(&mRecvMsg, manager_list);
-		mRecvMsgMutex.unlock();
-	}
 
-	bool CelestiaGnosis::IsConnected() {
-		return mSocket.is_open();
-	}
-
-	void CelestiaGnosis::SendWorker() {
+	void CelestiaGnosis::SendWorker(std::stop_token st) {
 		Bmmo::Message* msg;
 		asio::error_code ec;
 
-		while (IsConnected()) {
+		while (!st.stop_requested()) {
+			if (mSocket.is_open())
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
 			// get msg
@@ -108,7 +158,7 @@ namespace WhispersAbyss {
 		}
 	}
 
-	void CelestiaGnosis::RecvWorker() {
+	void CelestiaGnosis::RecvWorker(std::stop_token st) {
 		uint32_t mMsgHeader, mMsgReliable;
 		std::string mMsgBuffer;
 		asio::error_code ec;

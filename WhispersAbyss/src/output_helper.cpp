@@ -1,8 +1,6 @@
 #include "../include/output_helper.hpp"
 
-#include <Windows.h>
 #include <cstdio>
-#include <cstring>
 
 // for got ms-based time
 #ifdef _WIN32
@@ -17,8 +15,45 @@ namespace WhispersAbyss {
 		g_logTimeZero = GetSysTimeMicros();
 	}
 
-	OutputHelper::~OutputHelper() {
+	OutputHelper::~OutputHelper() {}
 
+
+	void OutputHelper::FatalError(const char* fmt, ...) {
+		PrintTimestamp();
+		va_list ap;
+		va_start(ap, fmt);
+		PrintMessage(fmt, ap);
+		va_end(ap);
+
+		// nuke process
+		NukeProcess(1);
+	}
+
+	void OutputHelper::Printf(const char* fmt, ...) {
+		PrintTimestamp();
+		va_list ap;
+		va_start(ap, fmt);
+		PrintMessage(fmt, ap);
+		va_end(ap);
+	}
+
+	void OutputHelper::RawPrintf(const char* fmt, ...) {
+		va_list ap;
+		va_start(ap, fmt);
+		PrintMessage(fmt, ap);
+		va_end(ap);
+	}
+
+
+	void OutputHelper::PrintTimestamp() {
+		float time = (float)(GetSysTimeMicros() - g_logTimeZero);
+		fprintf(stdout, "%10.6f ", time * 1e-6);
+		fflush(stdout);
+	}
+
+	void OutputHelper::PrintMessage(const char* fmt, va_list ap) {
+		vfprintf(stdout, fmt, ap);
+		fflush(stdout);
 	}
 
 	void OutputHelper::NukeProcess(int rc) {
@@ -51,42 +86,5 @@ namespace WhispersAbyss {
 
 		return 0;
 	}
-
-	void OutputHelper::DebugOutput(const char* pszMsg) {
-		float time = (float)(GetSysTimeMicros() - g_logTimeZero);
-		printf("%10.6f %s\n", time * 1e-6, pszMsg);
-		fflush(stdout);
-	}
-
-	void OutputHelper::FatalError(const char* fmt, ...) {
-		char text[2048];
-		va_list ap;
-		va_start(ap, fmt);
-		vsprintf(text, fmt, ap);
-		va_end(ap);
-		char* nl = strchr(text, '\0') - 1;
-		if (nl >= text && *nl == '\n')
-			*nl = '\0';
-		DebugOutput(text);
-
-		// nuke process
-		fflush(stdout);
-		fflush(stderr);
-		NukeProcess(1);
-	}
-
-	void OutputHelper::Printf(const char* fmt, ...) {
-		char text[2048];
-		va_list ap;
-		va_start(ap, fmt);
-		vsprintf(text, fmt, ap);
-		va_end(ap);
-		char* nl = strchr(text, '\0') - 1;
-		if (nl >= text && *nl == '\n')
-			*nl = '\0';
-		DebugOutput(text);
-	}
-
-
 
 }

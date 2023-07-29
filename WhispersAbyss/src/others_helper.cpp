@@ -5,18 +5,57 @@
 
 namespace WhispersAbyss {
 
-	ModuleStateMachine::ModuleStateMachine(ModuleStates init_state) :
+#pragma region IndexDistributor
+
+	IndexDistributor::IndexDistributor() :
+		mLock(), mCurrentIndex(0), mReturnedIndex() {}
+	IndexDistributor::~IndexDistributor() {}
+
+	IndexDistributor::Index_t IndexDistributor::Get() {
+		std::lock_guard<std::mutex> locker(mLock);
+		if (mReturnedIndex.empty()) return mCurrentIndex++;
+		else {
+			IndexDistributor::Index_t v = mReturnedIndex.front();
+			mReturnedIndex.pop_front();
+			return v;
+		}
+	}
+
+	void IndexDistributor::Return(IndexDistributor::Index_t v) {
+		std::lock_guard<std::mutex> locker(mLock);
+		mReturnedIndex.push_back(v);
+	}
+
+#pragma endregion
+
+#pragma region ModuleStateMachine
+
+	ModuleStateMachine::ModuleStateMachine(ModuleStates::ModuleStates_t init_state) :
 		mState(init_state), mIsInTransition(false), mStateMutex() {
 	}
 	ModuleStateMachine::~ModuleStateMachine() {}
 
-	bool ModuleStateMachine::IsInState(ModuleStates expected_state) {
+	bool ModuleStateMachine::IsInState(ModuleStates::ModuleStates_t expected_state) {
 		std::lock_guard<std::mutex> locker(mStateMutex);
 		if (mIsInTransition) return false;
 		return TestState(expected_state);
 	}
 
-	bool ModuleStateMachine::BeginTransition(ModuleStates state_condition) {
+	void ModuleStateMachine::SpinUntil(ModuleStates::ModuleStates_t expected_state) {
+		while (true) {
+			mStateMutex.lock();
+
+			if (mIsInTransition || !TestState(expected_state)) {
+				mStateMutex.unlock();
+				std::this_thread::sleep_for(SPIN_INTERVAL);
+			} else {
+				mStateMutex.unlock();
+				return;
+			}
+		}
+	}
+
+	bool ModuleStateMachine::BeginTransition(ModuleStates::ModuleStates_t state_condition) {
 		//// test if not fufill requirement. exit instantly.
 		//{
 		//	std::lock_guard<std::mutex> locker(mStateMutex);
@@ -39,10 +78,14 @@ namespace WhispersAbyss {
 		//	mIsInTransition = true;
 		//}
 		//return true;
-		while (true) {
+
+		/*while (true) {
 			mStateMutex.lock();
 
-			if (!TestState(state_condition)) return false;
+			if (!TestState(state_condition)) {
+				mStateMutex.unlock();
+				return false;
+			}
 
 			if (mIsInTransition) {
 				mStateMutex.unlock();
@@ -53,10 +96,17 @@ namespace WhispersAbyss {
 			mIsInTransition = true;
 			mStateMutex.unlock();
 			return true;
-		}
+		}*/
+
+		std::lock_guard locker(mStateMutex);
+		if (mIsInTransition || !TestState(state_condition)) return false;
+
+		mIsInTransition = true;
+		return true;
+
 	}
 
-	void ModuleStateMachine::EndTransition(ModuleStates next_state) {
+	void ModuleStateMachine::EndTransition(ModuleStates::ModuleStates_t next_state) {
 		//// test whether in transition
 		//std::lock_guard<std::mutex> locker(mStateMutex);
 		//if (!mIsInTransition) return;
@@ -68,30 +118,32 @@ namespace WhispersAbyss {
 		//mIsInTransition = false;
 		std::lock_guard<std::mutex> locker(mStateMutex);
 		if (!mIsInTransition) return;
-
 		if (!IsSingleState(next_state)) throw std::invalid_argument("invalid state. not a single state.");
+
 		mState = next_state;
 		mIsInTransition = false;
 	}
 
-	bool ModuleStateMachine::IsSingleState(ModuleStates state) {
-		switch (state)
-		{
-			case WhispersAbyss::ModuleStates::Ready:
-			case WhispersAbyss::ModuleStates::Running:
-			case WhispersAbyss::ModuleStates::Stopped:
+	bool ModuleStateMachine::IsSingleState(ModuleStates::ModuleStates_t state) {
+		switch (state) {
+			case ModuleStates::Ready:
+			case ModuleStates::Running:
+			case ModuleStates::Stopped:
 				return true;
 			default:
 				return false;
 		}
 	}
 
-	bool ModuleStateMachine::TestState(ModuleStates state) {
-		return static_cast<std::underlying_type_t<ModuleStates>>(mState) & static_cast<std::underlying_type_t<ModuleStates>>(state);
+	bool ModuleStateMachine::TestState(ModuleStates::ModuleStates_t state) {
+		return mState & state;
 	}
 
+#pragma endregion
 
-	StateMachineTransition::StateMachineTransition(ModuleStateMachine& sm, ModuleStates requirement) :
+#pragma region StateMachineTransition
+
+	StateMachineTransition::StateMachineTransition(ModuleStateMachine& sm, ModuleStates::ModuleStates_t requirement) :
 		mMachine(&sm), mNeedTransition(false), mNextStateSet(false), mNextState(ModuleStates::None) {
 		mNeedTransition = mMachine->BeginTransition(requirement);
 	}
@@ -104,10 +156,23 @@ namespace WhispersAbyss {
 	bool StateMachineTransition::NeedTransition() {
 		return mNeedTransition;
 	}
-	void StateMachineTransition::To(ModuleStates state) {
+	void StateMachineTransition::To(ModuleStates::ModuleStates_t state) {
 		if (!mMachine->IsSingleState(state)) throw std::logic_error("combined states is invalid for To()");
 		mNextStateSet = true;
 		mNextState = state;
 	}
+
+#pragma endregion
+
+#pragma region ModuleStateReporter
+
+	ModuleStateReporter::ModuleStateReporter(ModuleStateMachine& sm) : 
+	mMachine(&sm) {}
+	ModuleStateReporter::~ModuleStateReporter() {}
+
+	bool ModuleStateReporter::IsInState(ModuleStates::ModuleStates_t expected_state) { return mMachine->IsInState(expected_state); }
+	void ModuleStateReporter::SpinUntil(ModuleStates::ModuleStates_t expected_state) { mMachine->SpinUntil(expected_state); }
+
+#pragma endregion
 
 }
