@@ -36,9 +36,6 @@
     <ClCompile Include="src\leylines_bridge.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="src\others_helper.cpp">
-      <Filter>Sources</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\celestia_server.hpp">
@@ -63,6 +60,9 @@
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="include\others_helper.hpp">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\state_machine.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
   </ItemGroup>
