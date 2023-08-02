@@ -3,7 +3,7 @@
 namespace WhispersAbyss {
 
 	CelestiaServer::CelestiaServer(OutputHelper* output, uint16_t port) :
-		mOutput(output), mModuleState(ModuleStates::Ready), mStateReporter(mModuleState), mIndexDistributor(), mPort(port),
+		mOutput(output), mModuleStatus(StateMachine::State::Ready), mModuleStatusReporter(mModuleStatus), mIndexDistributor(), mPort(port),
 		mIoContext(), mTcpAcceptor(mIoContext, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), mPort)),
 		mTdIoCtx(), mTdDisposal(),
 		mConnectionsMutex(), mDisposalConnsMutex(), mConnections(), mDisposalConns()
@@ -13,8 +13,8 @@ namespace WhispersAbyss {
 	void CelestiaServer::Start() {
 		std::thread([this]() -> void {
 			// start transition
-			StateMachineTransition transition(mModuleState, ModuleStates::Ready);
-			if (!transition.NeedTransition()) return;
+			StateMachine::TransitionInitializing transition(mModuleStatus);
+			if (!transition.CanTransition()) return;
 
 			// register worker
 			this->RegisterAsyncWork();
@@ -28,15 +28,15 @@ namespace WhispersAbyss {
 			this->mTdDisposal = std::jthread(std::bind(&CelestiaServer::DisposalWorker, this, std::placeholders::_1));
 
 			// end transition
-			transition.To(ModuleStates::Running);
+			transition.SetTransitionError(false);
 		}).detach();
 	}
 
 	void CelestiaServer::Stop() {
 		std::thread([this]() -> void {
 			// start transition
-			StateMachineTransition transition(mModuleState, ModuleStates::Ready | ModuleStates::Running);
-			if (!transition.NeedTransition()) return;
+			StateMachine::TransitionStopping transition(mModuleStatus);
+			if (!transition.CanTransition()) return;
 
 			// try stop worker
 			this->mIoContext.stop();
@@ -57,24 +57,23 @@ namespace WhispersAbyss {
 				this->mTdDisposal.request_stop();
 				this->mTdDisposal.join();
 			}
-
-			// end transition
-			transition.To(ModuleStates::Stopped);
 		}).detach();
 	}
 
 	void CelestiaServer::GetConnections(std::deque<CelestiaGnosis*>& conn_list) {
-		if (mModuleState.IsInState(ModuleStates::Running)) {
-			std::lock_guard<std::mutex> locker(mConnectionsMutex);
-			DequeOperations::MoveDeque(mConnections, conn_list);
-		}
+		StateMachine::WorkBasedOnRunning work(mModuleStatus);
+		if (!work.CanWork()) return;
+
+		std::lock_guard<std::mutex> locker(mConnectionsMutex);
+		DequeOperations::MoveDeque(mConnections, conn_list);
 	}
 
 	void CelestiaServer::ReturnConnections(std::deque<CelestiaGnosis*>& conn_list) {
-		if (mModuleState.IsInState(ModuleStates::Running)) {
-			std::lock_guard<std::mutex> locker(mDisposalConnsMutex);
-			DequeOperations::MoveDeque(conn_list, mDisposalConns);
-		}
+		StateMachine::WorkBasedOnRunning work(mModuleStatus);
+		if (!work.CanWork()) return;
+
+		std::lock_guard<std::mutex> locker(mDisposalConnsMutex);
+		DequeOperations::MoveDeque(conn_list, mDisposalConns);
 	}
 
 	void CelestiaServer::AcceptorWorker(std::error_code ec, asio::ip::tcp::socket socket) {
@@ -106,12 +105,13 @@ namespace WhispersAbyss {
 			}
 
 			// stop them one by one until all of them stopped.
+			// then return index and free them.
 			for (auto& ptr : mConnections) {
 				ptr->Stop();
-				ptr->mStateReporter.SpinUntil(ModuleStates::Stopped);
+				ptr->mStatusReporter.SpinUntil(StateMachine::State::Stopped);
+				mIndexDistributor.Return(ptr->mIndex);
+				delete ptr;
 			}
-			// free every one
-			DequeOperations::FreeDeque(mConnections);
 		}
 	}
 

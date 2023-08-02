@@ -3,6 +3,7 @@
 #include <sdkddkver.h>	// need by asio
 #include "asio.hpp"
 #include "others_helper.hpp"
+#include "state_machine.hpp"
 #include "output_helper.hpp"
 #include "celestia_gnosis.hpp"
 #include <deque>
@@ -13,7 +14,7 @@ namespace WhispersAbyss {
 	class CelestiaServer {
 	private:
 		OutputHelper* mOutput;
-		ModuleStateMachine mModuleState;
+		StateMachine::StateMachineCore mModuleStatus;
 		IndexDistributor mIndexDistributor;
 		uint16_t mPort;
 		
@@ -25,7 +26,10 @@ namespace WhispersAbyss {
 
 		std::mutex mConnectionsMutex, mDisposalConnsMutex;
 		std::deque<CelestiaGnosis*> mConnections, mDisposalConns;
+	public:
+		StateMachine::StateMachineReporter mModuleStatusReporter;
 
+	private:
 		void AcceptorWorker(std::error_code ec, asio::ip::tcp::socket socket);
 		void RegisterAsyncWork();
 		void DisposalWorker(std::stop_token st);
@@ -36,7 +40,6 @@ namespace WhispersAbyss {
 		void Start();
 		void Stop();
 
-		ModuleStateReporter mStateReporter;
 		void GetConnections(std::deque<CelestiaGnosis*>& conn_list);
 		void ReturnConnections(std::deque<CelestiaGnosis*>& conn_list);
 	};

@@ -19,17 +19,14 @@ namespace WhispersAbyss::StateMachine {
 	Ready, Running, Stopped.
 
 	There are 2 possible transition for StateMachineCore.
-	Initializing: Ready to (Running or Stopped).
-	Stopping: Running to Stopped.
+	Initializing: Ready -> (Running or Stopped).
+	Stopping: (Ready or Running) -> Stopped.
 
-	In any case, there are only 1 transition is running.
-	Other transition will immediately rejected.
-	State not matched transition also will be rejected.
+	All transitions will wait previous transition (if existed) finished, then check its requirement.
+	All transitions will only run once in the same state machine.
 
 	In Running state, user can raise multiple work, called Running based Work.
 	Running state will block transition.
-	The first comming transition will take place first (set mIsInTransition = true) but not run immediate. It will wait Running based Work until all work done.
-	So that other transition requets during these time will see mIsInTransition == true and exit immediately.
 
 	If the state machine entering Stopped state, we say it is dead.
 	A dead state machine will not happend any transition again.
@@ -50,8 +47,24 @@ namespace WhispersAbyss::StateMachine {
 		friend class WorkBasedOnRunning;
 	public:
 		StateMachineCore(State init_state) :
-			mState(init_state), mIsInTransition(false), mWorkCount(0), mStateMutex() {}
-		~StateMachineCore() {}
+			mState(init_state), mIsInTransition(false), mWorkCount(0u),
+			mHasRunInitializing(false), mHasRunStopping(false),
+			mRefCounter(0u), mStateMutex() {}
+		~StateMachineCore() {
+			// Self spin until all reference has been released.
+			while (true) {
+				mStateMutex.lock();
+				if (mRefCounter != 0u) {
+					mStateMutex.unlock();
+					std::this_thread::sleep_for(SPIN_INTERVAL);
+				} else {
+					mStateMutex.unlock();
+					break;
+				}
+			}
+		}
+		StateMachineCore(const StateMachineCore& rhs) = delete;
+		StateMachineCore(StateMachineCore&& rhs) = delete;
 
 	private:
 		/// <summary>
@@ -65,40 +78,67 @@ namespace WhispersAbyss::StateMachine {
 		bool mIsInTransition;
 		/// <summary>
 		/// <para>The count of Running based work.</para>
-		/// <para>If this count != 0, any transition request will take place first and wait until all work done before executing its transition.</para>
+		/// <para>If this count != 0, Stopping transition request will be blocked until all work done.</para>
 		/// <para>Allow multiple Running based work. The count is recorded in there.</para>
 		/// </summary>
 		uint32_t mWorkCount;
+
+		/// <summary>
+		/// True if a Initializing transition has been run.
+		/// </summary>
+		bool mHasRunInitializing;
+		/// <summary>
+		/// True if a Stopping transition has been run.
+		/// </summary>
+		bool mHasRunStopping;
+
+		/// <summary>
+		/// <para>The reference counter.</para>
+		/// <para>Once a helper class created, increase this by 1. When free them, decrease this by 1.</para>
+		/// </summary>
+		uint32_t mRefCounter;
+
 		/// <summary>
 		/// Core mutex
 		/// </summary>
 		std::mutex mStateMutex;
+
+		void IncRefCounter() { ++mRefCounter; }
+		void DecRefCounter() { if (mRefCounter != 0u) --mRefCounter; }
 	};
 	class StateMachineReporter {
 	public:
 		StateMachineReporter(StateMachineCore& sm) :
-			mStateMachine(&sm) {}
-		~StateMachineReporter() {}
+			mStateMachine(&sm) {
+			std::lock_guard locker(mStateMachine->mStateMutex);
+			mStateMachine->IncRefCounter();
+		}
+		~StateMachineReporter() {
+			std::lock_guard locker(mStateMachine->mStateMutex);
+			mStateMachine->DecRefCounter();
+		}
+		StateMachineReporter(const StateMachineReporter& rhs) = delete;
+		StateMachineReporter(StateMachineReporter&& rhs) = delete;
 
 		/// <summary>
-		/// <para>Check whether this state machine is dead (is Stopped).</para>
+		/// <para>Check whether this state machine is matched.</para>
 		/// </summary>
 		/// <returns></returns>
-		bool IsStopped() {
+		bool IsInState(State state) {
 			std::lock_guard locker(mStateMachine->mStateMutex);
-			return mStateMachine->mState == State::Stopped;
+			return mStateMachine->mState == state;
 		}
 		/// <summary>
-		/// Spin self until the state is Stopped.
+		/// Spin self until the state matched.
 		/// </summary>
 		/// <returns></returns>
-		bool SpinUntilStopped() {
+		void SpinUntil(State state) {
 			while (true) {
 				// do not use lock guard 
 				// because we want thread sleep will not occupy the mutex.
 				mStateMachine->mStateMutex.lock();
 
-				if (mStateMachine->mState == State::Stopped) {
+				if (mStateMachine->mState == state) {
 					mStateMachine->mStateMutex.unlock();
 					return;
 				} else {
@@ -114,23 +154,45 @@ namespace WhispersAbyss::StateMachine {
 	public:
 		TransitionInitializing(StateMachineCore& sm) :
 			mStateMachine(&sm), mCanTransition(false), mHasProblem(false) {
-			std::lock_guard locker(mStateMachine->mStateMutex);
-
-			// if state matched, and no transition running, enter transition.
-			if (mStateMachine->mState == State::Ready && !mStateMachine->mIsInTransition) {
-				mCanTransition = true;
-				mStateMachine->mIsInTransition = true;
-			} else {
-				mCanTransition = false;
+			while (true) {
+				std::lock_guard locker(mStateMachine->mStateMutex);
+				mStateMachine->IncRefCounter();
+				break;
 			}
+
+			// loop until no transition running
+			while (true) {
+				mStateMachine->mStateMutex.lock();
+
+				if (mStateMachine->mIsInTransition) {
+					mStateMachine->mStateMutex.unlock();
+					std::this_thread::sleep_for(SPIN_INTERVAL);
+					continue;
+				}
+
+				if (mStateMachine->mState == State::Ready && !mStateMachine->mHasRunInitializing) {
+					mCanTransition = true;
+					mStateMachine->mHasRunInitializing = true;
+					mStateMachine->mIsInTransition = true;
+				} else {
+					mCanTransition = false;
+				}
+				mStateMachine->mStateMutex.unlock();
+				break;
+			}
+
 		}
 		~TransitionInitializing() {
+			std::lock_guard locker(mStateMachine->mStateMutex);
+			mStateMachine->DecRefCounter();
+
 			if (mCanTransition) {
-				std::lock_guard locker(mStateMachine->mStateMutex);
 				mStateMachine->mState = mHasProblem ? State::Stopped : State::Running;
 				mStateMachine->mIsInTransition = false;
 			}
 		}
+		TransitionInitializing(const TransitionInitializing& rhs) = delete;
+		TransitionInitializing(TransitionInitializing&& rhs) = delete;
 
 		/// <summary>
 		/// Check whether caller can start transition work.
@@ -152,58 +214,43 @@ namespace WhispersAbyss::StateMachine {
 	public:
 		TransitionStopping(StateMachineCore& sm) :
 			mStateMachine(&sm), mCanTransition(false) {
-
-			// pre-requirement check
 			while (true) {
 				std::lock_guard locker(mStateMachine->mStateMutex);
-
-				if (mStateMachine->mState == State::Running && !mStateMachine->mIsInTransition) {
-					// we can do transition. set flag and take place in state machine first
-					mCanTransition = true;
-					mStateMachine->mIsInTransition = true;
-
-					if (mStateMachine->mWorkCount == 0u) {
-						// we can directly entering transition.
-						return;
-					} else {
-						// there are still some Running based Work are running.
-						// break the while and wait them in the next while block.
-						break;
-					}
-				} else {
-					// if state not matched or any other transition is running.
-					// we definately can not run.
-					mCanTransition = false;
-					return;
-				}
+				mStateMachine->IncRefCounter();
+				break;
 			}
 
-			// Running based Work waiter
 			while (true) {
-				// sleep first
-				std::this_thread::sleep_for(SPIN_INTERVAL);
-
-				// check Running based Work again
 				mStateMachine->mStateMutex.lock();
-				if (mStateMachine->mWorkCount == 0u) {
-					// start transition
+
+				if (mStateMachine->mIsInTransition || mStateMachine->mWorkCount != 0u) {
 					mStateMachine->mStateMutex.unlock();
-					return;
-				} else {
-					// continue waiting
-					mStateMachine->mStateMutex.unlock();
+					std::this_thread::sleep_for(SPIN_INTERVAL);
 					continue;
 				}
-			}
 
+				if ((mStateMachine->mState == State::Ready || mStateMachine->mState == State::Running) && !mStateMachine->mHasRunStopping) {
+					mCanTransition = true;
+					mStateMachine->mHasRunStopping = true;
+					mStateMachine->mIsInTransition = true;
+				} else {
+					mCanTransition = false;
+				}
+				mStateMachine->mStateMutex.unlock();
+				break;
+			}
 		}
 		~TransitionStopping() {
+			std::lock_guard locker(mStateMachine->mStateMutex);
+			mStateMachine->DecRefCounter();
+
 			if (mCanTransition) {
-				std::lock_guard locker(mStateMachine->mStateMutex);
 				mStateMachine->mState = State::Stopped;
 				mStateMachine->mIsInTransition = false;
 			}
 		}
+		TransitionStopping(const TransitionStopping& rhs) = delete;
+		TransitionStopping(TransitionStopping&& rhs) = delete;
 
 		/// <summary>
 		/// Check whether caller can start transition work.
@@ -219,6 +266,7 @@ namespace WhispersAbyss::StateMachine {
 		WorkBasedOnRunning(StateMachineCore& sm) :
 			mStateMachine(&sm), mCanWork(false) {
 			std::lock_guard locker(mStateMachine->mStateMutex);
+			mStateMachine->IncRefCounter();
 
 			// if in running state, and no transition running, start work
 			if (mStateMachine->mState == State::Running && !mStateMachine->mIsInTransition) {
@@ -229,15 +277,18 @@ namespace WhispersAbyss::StateMachine {
 			}
 		}
 		~WorkBasedOnRunning() {
-			if (mCanWork) {
-				std::lock_guard locker(mStateMachine->mStateMutex);
+			std::lock_guard locker(mStateMachine->mStateMutex);
+			mStateMachine->DecRefCounter();
 
+			if (mCanWork) {
 				// make sure no lower overflow.
 				if (mStateMachine->mWorkCount != 0u) {
 					--mStateMachine->mWorkCount;
 				}
 			}
 		}
+		WorkBasedOnRunning(const WorkBasedOnRunning& rhs) = delete;
+		WorkBasedOnRunning(WorkBasedOnRunning&& rhs) = delete;
 
 		/// <summary>
 		/// Check whether caller can start Running based work.

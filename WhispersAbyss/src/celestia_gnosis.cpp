@@ -18,7 +18,7 @@ namespace WhispersAbyss {
 	CelestiaGnosis::~CelestiaGnosis() {
 		// make sure stopped
 		Stop();
-		mModuleState.SpinUntil(ModuleStates::Stopped);
+		mStatusReporter.SpinUntil(StateMachine::State::Stopped);
 
 		mOutput->Printf("[Gnosis-#%" PRIu64 "] Connection instance disposed.", mIndex);
 	}
@@ -26,8 +26,8 @@ namespace WhispersAbyss {
 	void CelestiaGnosis::Start() {
 		std::thread([this]() -> void {
 			// start transition
-			StateMachineTransition transition(mModuleState, ModuleStates::Ready);
-			if (!transition.NeedTransition()) return;
+			StateMachine::TransitionInitializing transition(mModuleStatus);
+			if (!transition.CanTransition()) return;
 
 			// active sender, recver
 			this->mTdRecv = std::jthread(std::bind(&CelestiaGnosis::RecvWorker, this, std::placeholders::_1));
@@ -36,15 +36,15 @@ namespace WhispersAbyss {
 			mOutput->Printf("[Gnosis-#%" PRIu64 "] Connection instance run.", mIndex);
 
 			// end transition
-			transition.To(ModuleStates::Running);
+			transition.SetTransitionError(false);
 		}).detach();
 	}
 
 	void CelestiaGnosis::Stop() {
 		std::thread([this]() -> void {
 			// start transition
-			StateMachineTransition transition(mModuleState, ModuleStates::Ready | ModuleStates::Running);
-			if (!transition.NeedTransition()) return;
+			StateMachine::TransitionStopping transition(mModuleStatus);
+			if (!transition.CanTransition()) return;
 
 			// close socket if it still is opened
 			if (mSocket.is_open()) {
@@ -73,12 +73,13 @@ namespace WhispersAbyss {
 
 			mOutput->Printf("[Gnosis-#%" PRIu64 "] Connection instance stopped.", mIndex);
 
-			// end transition
-			transition.To(ModuleStates::Stopped);
 		}).detach();
 	}
 
 	void CelestiaGnosis::Send(std::deque<Bmmo::Message*>& manager_list) {
+		StateMachine::WorkBasedOnRunning work(mModuleStatus);
+		if (!work.CanWork()) return;
+
 		size_t msg_size;
 
 		// push data
@@ -93,6 +94,9 @@ namespace WhispersAbyss {
 	}
 
 	void CelestiaGnosis::Recv(std::deque<Bmmo::Message*>& manager_list) {
+		StateMachine::WorkBasedOnRunning work(mModuleStatus);
+		if (!work.CanWork()) return;
+
 		std::lock_guard locker(mRecvMsgMutex);
 		DequeOperations::MoveDeque(mRecvMsg, manager_list);
 	}
