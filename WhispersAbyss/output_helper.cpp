@@ -1,4 +1,4 @@
-#include "../include/output_helper.hpp"
+#include "output_helper.hpp"
 
 #include <cstdio>
 

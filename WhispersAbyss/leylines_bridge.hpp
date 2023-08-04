@@ -12,7 +12,7 @@ namespace WhispersAbyss {
 		std::mutex mStatusMutex;
 		ModuleStatus GetConnStatus();
 
-		LeyLinesBridge(OutputHelper* output, const char* server, CelestiaGnosis* celestia);
+		LeyLinesBridge(OutputHelper* output, const char* server, TcpInstance* celestia);
 		~LeyLinesBridge();
 
 		void ActiveStop();
@@ -22,7 +22,7 @@ namespace WhispersAbyss {
 	private:
 		uint64_t mIndex;
 		OutputHelper* mOutput;
-		CelestiaGnosis* mCelestiaClient;
+		TcpInstance* mCelestiaClient;
 		AbyssClient* mAbyssClient;
 		std::deque<Bmmo::Message*> mMessages;
 

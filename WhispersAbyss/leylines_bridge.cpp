@@ -1,10 +1,10 @@
-#include "../include/leylines_bridge.hpp"
+#include "leylines_bridge.hpp"
 
 namespace WhispersAbyss {
 
 	uint64_t LeyLinesBridge::smIndexDistributor = 0;
 
-	LeyLinesBridge::LeyLinesBridge(OutputHelper* output, const char* server, CelestiaGnosis* celestia) :
+	LeyLinesBridge::LeyLinesBridge(OutputHelper* output, const char* server, TcpInstance* celestia) :
 		mIndex(smIndexDistributor++),
 		mOutput(output),
 		mCelestiaClient(celestia),

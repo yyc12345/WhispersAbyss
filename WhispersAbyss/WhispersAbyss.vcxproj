@@ -94,24 +94,24 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\abyss_client.cpp" />
-    <ClCompile Include="src\bmmo_message.cpp" />
-    <ClCompile Include="src\celestia_gnosis.cpp" />
-    <ClCompile Include="src\celestia_server.cpp" />
-    <ClCompile Include="src\leylines_bridge.cpp" />
-    <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\output_helper.cpp" />
+    <ClCompile Include="abyss_client.cpp" />
+    <ClCompile Include="tcp_instance.cpp" />
+    <ClCompile Include="tcp_factory.cpp" />
+    <ClCompile Include="leylines_bridge.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="messages.cpp" />
+    <ClCompile Include="output_helper.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\abyss_client.hpp" />
-    <ClInclude Include="include\bmmo_message.hpp" />
-    <ClInclude Include="include\celestia_gnosis.hpp" />
-    <ClInclude Include="include\celestia_server.hpp" />
-    <ClInclude Include="include\global_define.hpp" />
-    <ClInclude Include="include\leylines_bridge.hpp" />
-    <ClInclude Include="include\output_helper.hpp" />
-    <ClInclude Include="include\others_helper.hpp" />
-    <ClInclude Include="include\state_machine.hpp" />
+    <ClInclude Include="abyss_client.hpp" />
+    <ClInclude Include="tcp_instance.hpp" />
+    <ClInclude Include="tcp_factory.hpp" />
+    <ClInclude Include="global_define.hpp" />
+    <ClInclude Include="leylines_bridge.hpp" />
+    <ClInclude Include="messages.hpp" />
+    <ClInclude Include="output_helper.hpp" />
+    <ClInclude Include="others_helper.hpp" />
+    <ClInclude Include="state_machine.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -1,7 +1,7 @@
-﻿#include "../include/abyss_client.hpp"
-#include "../include/celestia_server.hpp"
-#include "../include/output_helper.hpp"
-#include "../include/leylines_bridge.hpp"
+﻿#include "abyss_client.hpp"
+#include "celestia_server.hpp"
+#include "output_helper.hpp"
+#include "leylines_bridge.hpp"
 #include <atomic>
 #include <conio.h>
 
@@ -20,13 +20,13 @@ void MainWorker(
 	// start server and client and waiting for initialize
 	// start abyss client first, because abyss client need more time to init
 	output.Printf("Preparing celestia...");
-	WhispersAbyss::CelestiaServer server(&output, acceptPort);
+	WhispersAbyss::TcpFactory server(&output, acceptPort);
 	server.Start();
 	while (!server.mIsRunning.load());
 	output.Printf("Celestia started.");
 
 	// core processor
-	std::deque<WhispersAbyss::CelestiaGnosis*> conns;
+	std::deque<WhispersAbyss::TcpInstance*> conns;
 	std::deque<WhispersAbyss::LeyLinesBridge*> conn_pairs, cached_pairs;
 	bool order_profile = false;
 	while (true) {

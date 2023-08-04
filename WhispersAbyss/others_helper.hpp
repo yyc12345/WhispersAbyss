@@ -13,10 +13,10 @@ namespace WhispersAbyss {
 
 	namespace DequeOperations {
 
-		template<class T, std::enable_if_t<std::is_pointer_v<T>, int> = 0>
+		template<class T>
 		void MoveDeque(std::deque<T>& _from, std::deque<T>& _to) {
 			// https://stackoverflow.com/questions/49928501/better-way-to-move-objects-from-one-stddeque-to-another
-			_to.insert(_to.begin(),
+			_to.insert(_to.end(),
 				std::make_move_iterator(_from.begin()),
 				std::make_move_iterator(_from.end())
 			);
@@ -24,12 +24,11 @@ namespace WhispersAbyss {
 			_from.erase(_from.begin(), _from.end());
 		}
 
-		template<class T, std::enable_if_t<std::is_pointer_v<T>, int> = 0>
+		template<class T>
 		void FreeDeque(std::deque<T>& _data) {
-			for (auto& ptr : _data) {
-				delete ptr;
-			}
-
+			//for (auto& ptr : _data) {
+			//	delete ptr;
+			//}
 			_data.erase(_data.begin(), _data.end());
 		}
 

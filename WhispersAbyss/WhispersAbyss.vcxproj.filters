@@ -15,54 +15,54 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\main.cpp">
+    <ClCompile Include="main.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="src\celestia_server.cpp">
+    <ClCompile Include="tcp_factory.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="src\abyss_client.cpp">
+    <ClCompile Include="abyss_client.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="src\output_helper.cpp">
+    <ClCompile Include="output_helper.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="src\bmmo_message.cpp">
+    <ClCompile Include="tcp_instance.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="src\celestia_gnosis.cpp">
+    <ClCompile Include="leylines_bridge.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="src\leylines_bridge.cpp">
+    <ClCompile Include="messages.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\celestia_server.hpp">
+    <ClInclude Include="tcp_factory.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="include\abyss_client.hpp">
+    <ClInclude Include="abyss_client.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="include\output_helper.hpp">
+    <ClInclude Include="output_helper.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="include\bmmo_message.hpp">
+    <ClInclude Include="tcp_instance.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="include\celestia_gnosis.hpp">
+    <ClInclude Include="global_define.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="include\global_define.hpp">
+    <ClInclude Include="leylines_bridge.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="include\leylines_bridge.hpp">
+    <ClInclude Include="others_helper.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="include\others_helper.hpp">
+    <ClInclude Include="state_machine.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="include\state_machine.hpp">
+    <ClInclude Include="messages.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
   </ItemGroup>

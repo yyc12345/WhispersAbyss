@@ -1,5 +1,5 @@
-#include "../include/abyss_client.hpp"
-#include "../include/global_define.hpp"
+#include "abyss_client.hpp"
+#include "global_define.hpp"
 #include <steam/steamnetworkingsockets.h>
 #include <steam/isteamnetworkingutils.h>
 

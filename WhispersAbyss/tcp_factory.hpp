@@ -5,13 +5,13 @@
 #include "others_helper.hpp"
 #include "state_machine.hpp"
 #include "output_helper.hpp"
-#include "celestia_gnosis.hpp"
+#include "tcp_instance.hpp"
 #include <deque>
 #include <atomic>
 
 namespace WhispersAbyss {
 
-	class CelestiaServer {
+	class TcpFactory {
 	private:
 		OutputHelper* mOutput;
 		StateMachine::StateMachineCore mModuleStatus;
@@ -25,7 +25,7 @@ namespace WhispersAbyss {
 		std::jthread mTdDisposal;
 
 		std::mutex mConnectionsMutex, mDisposalConnsMutex;
-		std::deque<CelestiaGnosis*> mConnections, mDisposalConns;
+		std::deque<TcpInstance*> mConnections, mDisposalConns;
 	public:
 		StateMachine::StateMachineReporter mModuleStatusReporter;
 
@@ -34,14 +34,16 @@ namespace WhispersAbyss {
 		void RegisterAsyncWork();
 		void DisposalWorker(std::stop_token st);
 	public:
-		CelestiaServer(OutputHelper* output, uint16_t port);
-		~CelestiaServer();
+		TcpFactory(OutputHelper* output, uint16_t port);
+		TcpFactory(const TcpFactory& rhs) = delete;
+		TcpFactory(TcpFactory&& rhs) = delete;
+		~TcpFactory();
 
 		void Start();
 		void Stop();
 
-		void GetConnections(std::deque<CelestiaGnosis*>& conn_list);
-		void ReturnConnections(std::deque<CelestiaGnosis*>& conn_list);
+		void GetConnections(std::deque<TcpInstance*>& conn_list);
+		void ReturnConnections(std::deque<TcpInstance*>& conn_list);
 	};
 
 }

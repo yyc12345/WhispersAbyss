@@ -1,16 +1,16 @@
-#include "../include/celestia_server.hpp"
+#include "tcp_factory.hpp"
 
 namespace WhispersAbyss {
 
-	CelestiaServer::CelestiaServer(OutputHelper* output, uint16_t port) :
-		mOutput(output), mModuleStatus(StateMachine::State::Ready), mModuleStatusReporter(mModuleStatus), mIndexDistributor(), mPort(port),
+	TcpFactory::TcpFactory(OutputHelper* output, uint16_t port) :
+		mOutput(output), mModuleStatus(StateMachine::Ready), mModuleStatusReporter(mModuleStatus), mIndexDistributor(), mPort(port),
 		mIoContext(), mTcpAcceptor(mIoContext, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), mPort)),
 		mTdIoCtx(), mTdDisposal(),
 		mConnectionsMutex(), mDisposalConnsMutex(), mConnections(), mDisposalConns()
 	{}
-	CelestiaServer::~CelestiaServer() {}
+	TcpFactory::~TcpFactory() {}
 
-	void CelestiaServer::Start() {
+	void TcpFactory::Start() {
 		std::thread([this]() -> void {
 			// start transition
 			StateMachine::TransitionInitializing transition(mModuleStatus);
@@ -25,14 +25,14 @@ namespace WhispersAbyss {
 			});
 
 			// preparing disposal
-			this->mTdDisposal = std::jthread(std::bind(&CelestiaServer::DisposalWorker, this, std::placeholders::_1));
+			this->mTdDisposal = std::jthread(std::bind(&TcpFactory::DisposalWorker, this, std::placeholders::_1));
 
 			// end transition
 			transition.SetTransitionError(false);
 		}).detach();
 	}
 
-	void CelestiaServer::Stop() {
+	void TcpFactory::Stop() {
 		std::thread([this]() -> void {
 			// start transition
 			StateMachine::TransitionStopping transition(mModuleStatus);
@@ -60,7 +60,7 @@ namespace WhispersAbyss {
 		}).detach();
 	}
 
-	void CelestiaServer::GetConnections(std::deque<CelestiaGnosis*>& conn_list) {
+	void TcpFactory::GetConnections(std::deque<TcpInstance*>& conn_list) {
 		StateMachine::WorkBasedOnRunning work(mModuleStatus);
 		if (!work.CanWork()) return;
 
@@ -68,7 +68,7 @@ namespace WhispersAbyss {
 		DequeOperations::MoveDeque(mConnections, conn_list);
 	}
 
-	void CelestiaServer::ReturnConnections(std::deque<CelestiaGnosis*>& conn_list) {
+	void TcpFactory::ReturnConnections(std::deque<TcpInstance*>& conn_list) {
 		StateMachine::WorkBasedOnRunning work(mModuleStatus);
 		if (!work.CanWork()) return;
 
@@ -76,9 +76,9 @@ namespace WhispersAbyss {
 		DequeOperations::MoveDeque(conn_list, mDisposalConns);
 	}
 
-	void CelestiaServer::AcceptorWorker(std::error_code ec, asio::ip::tcp::socket socket) {
+	void TcpFactory::AcceptorWorker(std::error_code ec, asio::ip::tcp::socket socket) {
 		// accept socket
-		CelestiaGnosis* new_connection = new CelestiaGnosis(mOutput, mIndexDistributor.Get(), std::move(socket));
+		TcpInstance* new_connection = new TcpInstance(mOutput, mIndexDistributor.Get(), std::move(socket));
 		{
 			std::lock_guard<std::mutex> locker(mConnectionsMutex);
 			new_connection->Start();
@@ -89,14 +89,14 @@ namespace WhispersAbyss {
 		RegisterAsyncWork();
 	}
 
-	void CelestiaServer::RegisterAsyncWork() {
+	void TcpFactory::RegisterAsyncWork() {
 		mTcpAcceptor.async_accept(std::bind(
-			&CelestiaServer::AcceptorWorker, this, std::placeholders::_1, std::placeholders::_2
+			&TcpFactory::AcceptorWorker, this, std::placeholders::_1, std::placeholders::_2
 		));
 	}
 
-	void CelestiaServer::DisposalWorker(std::stop_token st) {
-		std::deque<CelestiaGnosis*> cache;
+	void TcpFactory::DisposalWorker(std::stop_token st) {
+		std::deque<TcpInstance*> cache;
 		while (!st.stop_requested()) {
 			// copy first
 			{
@@ -108,7 +108,7 @@ namespace WhispersAbyss {
 			// then return index and free them.
 			for (auto& ptr : mConnections) {
 				ptr->Stop();
-				ptr->mStatusReporter.SpinUntil(StateMachine::State::Stopped);
+				ptr->mStatusReporter.SpinUntil(StateMachine::Stopped);
 				mIndexDistributor.Return(ptr->mIndex);
 				delete ptr;
 			}
