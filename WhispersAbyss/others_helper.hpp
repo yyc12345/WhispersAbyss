@@ -10,6 +10,7 @@ namespace WhispersAbyss {
 	constexpr const size_t WARNING_CAPACITY = 2048u;
 	constexpr const size_t STEAM_MSG_CAPACITY = 2048u;
 	constexpr const std::chrono::milliseconds SPIN_INTERVAL(10);
+	constexpr const std::chrono::milliseconds DISPOSAL_INTERVAL(500);
 
 	namespace DequeOperations {
 

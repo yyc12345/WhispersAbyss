@@ -21,7 +21,7 @@
     <ClCompile Include="tcp_factory.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="abyss_client.cpp">
+    <ClCompile Include="gns_instance.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="output_helper.cpp">
@@ -36,12 +36,15 @@
     <ClCompile Include="messages.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
+    <ClCompile Include="gns_factory.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tcp_factory.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="abyss_client.hpp">
+    <ClInclude Include="gns_instance.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="output_helper.hpp">
@@ -63,6 +66,9 @@
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="messages.hpp">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="gns_factory.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
   </ItemGroup>

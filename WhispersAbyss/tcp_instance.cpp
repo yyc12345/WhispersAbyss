@@ -98,7 +98,7 @@ namespace WhispersAbyss {
 		DequeOperations::MoveDeque(mRecvMsg, msg_list);
 	}
 
-	std::string TcpInstance::GetEndpointOrder() {
+	std::string TcpInstance::GetOrderedUrl() {
 		StateMachine::WorkBasedOnRunning work(mModuleStatus);
 		if (!work.CanWork()) return std::string();
 		

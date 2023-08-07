@@ -23,7 +23,7 @@ namespace WhispersAbyss {
 		uint64_t mIndex;
 		OutputHelper* mOutput;
 		TcpInstance* mCelestiaClient;
-		AbyssClient* mAbyssClient;
+		GnsInstance* mAbyssClient;
 		std::deque<Bmmo::Message*> mMessages;
 
 		std::thread mTdStop, mTdRunningDetector;

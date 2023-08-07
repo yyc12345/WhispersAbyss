@@ -63,7 +63,7 @@ namespace WhispersAbyss {
 		std::jthread mTdSend, mTdRecv;
 	public:
 		StateMachine::StateMachineReporter mStatusReporter;
-		uint64_t mIndex;
+		IndexDistributor::Index_t mIndex;
 
 	private:
 		void SendWorker(std::stop_token st);
@@ -81,7 +81,7 @@ namespace WhispersAbyss {
 
 		void Send(std::deque<CommonMessage>& msg_list);
 		void Recv(std::deque<CommonMessage>& msg_list);
-		std::string GetEndpointOrder();
+		std::string GetOrderedUrl();		// return empty string mean no ordered url.
 	};
 
 

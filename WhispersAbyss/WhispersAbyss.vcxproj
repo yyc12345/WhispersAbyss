@@ -94,7 +94,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="abyss_client.cpp" />
+    <ClCompile Include="gns_factory.cpp" />
+    <ClCompile Include="gns_instance.cpp" />
     <ClCompile Include="tcp_instance.cpp" />
     <ClCompile Include="tcp_factory.cpp" />
     <ClCompile Include="leylines_bridge.cpp" />
@@ -103,7 +104,8 @@
     <ClCompile Include="output_helper.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="abyss_client.hpp" />
+    <ClInclude Include="gns_factory.hpp" />
+    <ClInclude Include="gns_instance.hpp" />
     <ClInclude Include="tcp_instance.hpp" />
     <ClInclude Include="tcp_factory.hpp" />
     <ClInclude Include="global_define.hpp" />

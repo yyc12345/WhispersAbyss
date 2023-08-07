@@ -14,7 +14,7 @@ void MainWorker(
 
 	// init steam works for abyss client
 	output.Printf("Preparing abyss...");
-	WhispersAbyss::AbyssClient::Init(&output);
+	WhispersAbyss::GnsInstance::Init(&output);
 	output.Printf("Abyss started.");
 
 	// start server and client and waiting for initialize
@@ -95,7 +95,7 @@ void MainWorker(
 	output.Printf("All bridges stoped.");
 
 	output.Printf("Stoping abyss...");
-	WhispersAbyss::AbyssClient::Dispose();
+	WhispersAbyss::GnsInstance::Dispose();
 	output.Printf("Abyss Client stoped.");
 }
 

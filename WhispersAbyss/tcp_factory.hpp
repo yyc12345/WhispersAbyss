@@ -43,7 +43,7 @@ namespace WhispersAbyss {
 		void Stop();
 
 		void GetConnections(std::deque<TcpInstance*>& conn_list);
-		void ReturnConnections(std::deque<TcpInstance*>& conn_list);
+		void ReturnConnections(TcpInstance* conn);
 	};
 
 }

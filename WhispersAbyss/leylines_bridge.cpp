@@ -13,7 +13,7 @@ namespace WhispersAbyss {
 		mStatus(ModuleStatus::Ready), mStatusMutex(),
 		mMessages(),
 		mCelestiaCounter(0), mAbyssCounter(0) {
-		mAbyssClient = new AbyssClient(output, server);
+		mAbyssClient = new GnsInstance(output, server);
 		mStatus = ModuleStatus::Initializing;
 		mTdRunningDetector = std::thread(&LeyLinesBridge::DetectRunning, this);
 	}

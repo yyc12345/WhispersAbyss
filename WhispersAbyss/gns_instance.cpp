@@ -1,20 +1,21 @@
-#include "abyss_client.hpp"
-#include "global_define.hpp"
+#include <sdkddkver.h>	// need by asio
+#include "asio.hpp"
 #include <steam/steamnetworkingsockets.h>
 #include <steam/isteamnetworkingutils.h>
+#include "gns_factory.hpp"
 
 namespace WhispersAbyss {
 
 	// init static variables
-	ISteamNetworkingSockets* AbyssClient::smSteamSockets = NULL;
-	uint64_t AbyssClient::smIndexDistributor = 0;
+	ISteamNetworkingSockets* GnsInstance::smSteamSockets = NULL;
+	uint64_t GnsInstance::smIndexDistributor = 0;
 
-	ModuleStatus AbyssClient::GetConnStatus() {
+	ModuleStatus GnsInstance::GetConnStatus() {
 		std::lock_guard<std::mutex> lockGuard(mStatusMutex);
 		return mStatus;
 	}
 
-	AbyssClient::AbyssClient(OutputHelper* output, const char* server) :
+	GnsInstance::GnsInstance(OutputHelper* output, const char* server) :
 		mIndex(smIndexDistributor++),
 
 		mStatus(ModuleStatus::Ready), mStatusMutex(),
@@ -31,19 +32,19 @@ namespace WhispersAbyss {
 		mTdCtx(), mTdConnect(), mTdStop() {
 
 		// check requirements
-		if (smSteamSockets == NULL) throw std::logic_error("Call constructor of AbyssClient before AbyssClient::Init.");
+		if (smSteamSockets == NULL) throw std::logic_error("Call constructor of GnsInstance before GnsInstance::Init.");
 
 		// when creating instance, we should connect server immediately
 		// start connect worker and notify main worker
 		mStopCtx.store(false);
 		mStatus = ModuleStatus::Initializing;
-		mTdCtx = std::thread(&AbyssClient::CtxWorker, this);
-		mTdConnect = std::thread(&AbyssClient::ConnectWorker, this);
+		mTdCtx = std::thread(&GnsInstance::CtxWorker, this);
+		mTdConnect = std::thread(&GnsInstance::ConnectWorker, this);
 
 		mOutput->Printf("[Abyss-#%" PRIu64 "] Connection instance created.", mIndex);
 	}
 
-	AbyssClient::~AbyssClient() {
+	GnsInstance::~GnsInstance() {
 		// free remained messages
 		Bmmo::DeleteCachedMessage(&mRecvMsg);
 		Bmmo::DeleteCachedMessage(&mSendMsg);
@@ -54,8 +55,8 @@ namespace WhispersAbyss {
 		mOutput->Printf("[Abyss-#%" PRIu64 "] Connection instance disposed.", mIndex);
 	}
 
-	void AbyssClient::Init(OutputHelper* output) {
-		if (smSteamSockets != NULL) throw std::logic_error("Wrong call of AbyssClient::Init.");
+	void GnsInstance::Init(OutputHelper* output) {
+		if (smSteamSockets != NULL) throw std::logic_error("Wrong call of GnsInstance::Init.");
 
 		// setup fuck valve output
 		FuckValve::LockValveOutput.lock();
@@ -75,8 +76,8 @@ namespace WhispersAbyss {
 		FuckValve::ValveOutput->Printf("[Abyss] GameNetworkingSockets_Init done.");
 	}
 
-	void AbyssClient::Dispose() {
-		if (smSteamSockets == NULL) throw std::logic_error("Wrong call of AbyssClient::Dispose.");
+	void GnsInstance::Dispose() {
+		if (smSteamSockets == NULL) throw std::logic_error("Wrong call of GnsInstance::Dispose.");
 
 		// fuck valve output do not need to be removed
 		// this operation is useless
@@ -88,7 +89,7 @@ namespace WhispersAbyss {
 		FuckValve::ValveOutput->Printf("[Abyss] GameNetworkingSockets_Kill done.");
 	}
 
-	void AbyssClient::Stop() {
+	void GnsInstance::Stop() {
 		// check requirement
 		{
 			std::lock_guard<std::mutex> lockGuard(mStatusMutex);
@@ -97,10 +98,10 @@ namespace WhispersAbyss {
 		}
 
 		// start stop worker
-		mTdStop = std::thread(&AbyssClient::StopWorker, this);
+		mTdStop = std::thread(&GnsInstance::StopWorker, this);
 	}
 
-	void AbyssClient::CtxWorker() {
+	void GnsInstance::CtxWorker() {
 		std::deque<Bmmo::Message*> incoming_message, outbound_message;
 
 		while (true) {
@@ -157,7 +158,7 @@ namespace WhispersAbyss {
 		return;
 	}
 
-	void AbyssClient::ConnectWorker() {
+	void GnsInstance::ConnectWorker() {
 		// split url
 		std::string address, port;
 		//size_t urlpos = mServerUrl.rfind(":");
@@ -195,7 +196,7 @@ namespace WhispersAbyss {
 		ioContext.stop();
 	}
 
-	void AbyssClient::StopWorker() {
+	void GnsInstance::StopWorker() {
 		// stop steam interface and ctx worker
 		DisconnectSteam();
 		mStopCtx.store(true);
@@ -212,7 +213,7 @@ namespace WhispersAbyss {
 		}
 	}
 
-	void AbyssClient::Send(std::deque<Bmmo::Message*>* manager_list) {
+	void GnsInstance::Send(std::deque<Bmmo::Message*>* manager_list) {
 		size_t msg_size;
 
 		// push data
@@ -228,13 +229,13 @@ namespace WhispersAbyss {
 		}
 	}
 
-	void AbyssClient::Recv(std::deque<Bmmo::Message*>* manager_list) {
+	void GnsInstance::Recv(std::deque<Bmmo::Message*>* manager_list) {
 		mRecvMsgMutex.lock();
 		Bmmo::MoveCachedMessage(&mRecvMsg, manager_list);
 		mRecvMsgMutex.unlock();
 	}
 
-	void AbyssClient::HandleSteamConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* pInfo) {
+	void GnsInstance::HandleSteamConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* pInfo) {
 		auto state = pInfo->m_info.m_eState;
 
 		switch (state) {
@@ -291,7 +292,7 @@ namespace WhispersAbyss {
 
 #pragma region steam work
 
-	bool AbyssClient::ConnectSteam(std::string* addrs) {
+	bool GnsInstance::ConnectSteam(std::string* addrs) {
 		std::lock_guard<std::mutex> lockGuard(mSteamMutex);
 
 		if (mSteamConnection != k_HSteamNetConnection_Invalid) return false;	// already connected
@@ -316,7 +317,7 @@ namespace WhispersAbyss {
 		return true;
 	}
 
-	void WhispersAbyss::AbyssClient::RecvSteam(std::deque<Bmmo::Message*>* msg_list) {
+	void WhispersAbyss::GnsInstance::RecvSteam(std::deque<Bmmo::Message*>* msg_list) {
 		std::lock_guard<std::mutex> lockGuard(mSteamMutex);
 
 		if (mSteamConnection == k_HSteamNetConnection_Invalid) return;
@@ -339,7 +340,7 @@ namespace WhispersAbyss {
 		}
 	}
 
-	void WhispersAbyss::AbyssClient::SendSteam(Bmmo::Message* msg) {
+	void WhispersAbyss::GnsInstance::SendSteam(Bmmo::Message* msg) {
 		std::lock_guard<std::mutex> lockGuard(mSteamMutex);
 
 		if (mSteamConnection == k_HSteamNetConnection_Invalid) return;
@@ -355,7 +356,7 @@ namespace WhispersAbyss {
 		delete msg;
 	}
 
-	void AbyssClient::DisconnectSteam() {
+	void GnsInstance::DisconnectSteam() {
 		std::lock_guard<std::mutex> lockGuard(mSteamMutex);
 
 		if (mSteamConnection != k_HSteamNetConnection_Invalid) {
@@ -368,7 +369,7 @@ namespace WhispersAbyss {
 		}
 	}
 
-	//void AbyssClient::HandleSteamDebugOutput(ESteamNetworkingSocketsDebugOutputType eType, const char* pszMsg) {
+	//void GnsInstance::HandleSteamDebugOutput(ESteamNetworkingSocketsDebugOutputType eType, const char* pszMsg) {
 	//	if (eType == k_ESteamNetworkingSocketsDebugOutputType_Bug) {
 	//		mOutput->FatalError(pszMsg);
 	//	} else {
@@ -379,7 +380,7 @@ namespace WhispersAbyss {
 	namespace FuckValve {
 
 		OutputHelper* ValveOutput = NULL;
-		std::unordered_map<HSteamNetConnection, AbyssClient*> ValveClientRouter;
+		std::unordered_map<HSteamNetConnection, GnsInstance*> ValveClientRouter;
 		std::mutex LockValveClientRouter, LockValveOutput;
 
 
@@ -394,7 +395,7 @@ namespace WhispersAbyss {
 		}
 
 
-		void RegisterClient(HSteamNetConnection conn, AbyssClient* instance) {
+		void RegisterClient(HSteamNetConnection conn, GnsInstance* instance) {
 			std::lock_guard<std::mutex> lockGuard(LockValveClientRouter);
 			ValveClientRouter.emplace(conn, instance);
 		}
