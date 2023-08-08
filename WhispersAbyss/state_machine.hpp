@@ -125,7 +125,7 @@ namespace WhispersAbyss::StateMachine {
 		/// <returns></returns>
 		bool IsInState(State_t state) {
 			std::lock_guard locker(mStateMachine->mStateMutex);
-			return mStateMachine->mState == state;
+			return mStateMachine->mState == state && !mStateMachine->mIsInTransition;
 		}
 		/// <summary>
 		/// Spin self until the state matched.
@@ -137,7 +137,7 @@ namespace WhispersAbyss::StateMachine {
 				// because we want thread sleep will not occupy the mutex.
 				mStateMachine->mStateMutex.lock();
 
-				if (mStateMachine->mState == state) {
+				if (mStateMachine->mState == state && !mStateMachine->mIsInTransition) {
 					mStateMachine->mStateMutex.unlock();
 					return;
 				} else {

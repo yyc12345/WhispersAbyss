@@ -60,5 +60,6 @@ namespace WhispersAbyss {
 		Index_t mCurrentIndex;
 		std::deque<Index_t> mReturnedIndex;
 	};
+	constexpr const IndexDistributor::Index_t NO_INDEX = 0u;
 
 }

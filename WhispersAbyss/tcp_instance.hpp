@@ -68,15 +68,13 @@ namespace WhispersAbyss {
 	private:
 		void SendWorker(std::stop_token st);
 		void RecvWorker(std::stop_token st);
-
-		void CheckSize(size_t msg_size);
+		void CheckSize(size_t msg_size, bool is_recv);
 	public:
 		TcpInstance(OutputHelper* output, IndexDistributor::Index_t index, asio::ip::tcp::socket socket);
 		TcpInstance(const TcpInstance& rhs) = delete;
 		TcpInstance(TcpInstance&& rhs) = delete;
 		~TcpInstance();
 
-		void Start();
 		void Stop();
 
 		void Send(std::deque<CommonMessage>& msg_list);

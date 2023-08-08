@@ -25,13 +25,10 @@ namespace WhispersAbyss {
 	}
 
 	GnsFactory::GnsFactory(OutputHelper* output) :
-		mOutput(output), mModuleStatus(StateMachine::Ready), mModuleStatusReporter(mModuleStatus), mSelfOperator(this),
+		mOutput(output), mModuleStatus(StateMachine::Ready), mStatusReporter(mModuleStatus), mSelfOperator(this),
 		mIndexDistributor(), mGnsSockets(nullptr),
 		mRouterMap(), mRouterMutex()
-	{}
-	GnsFactory::~GnsFactory() {}
-
-	void GnsFactory::Start() {
+	{
 		std::thread([this]() -> void {
 			// start transition
 			StateMachine::TransitionInitializing transition(mModuleStatus);
@@ -40,7 +37,7 @@ namespace WhispersAbyss {
 			// initialize steam lib
 			SteamDatagramErrMsg err_msg;
 			if (!GameNetworkingSockets_Init(nullptr, err_msg)) {
-				this->mOutput->FatalError("[Gns] GameNetworkingSockets_Init failed. %s", err_msg);
+				this->mOutput->FatalError(OutputHelper::Component::GnsFactory, NO_INDEX, "GameNetworkingSockets_Init failed. %s", err_msg);
 				transition.SetTransitionError(true);
 				return;
 			}
@@ -49,7 +46,7 @@ namespace WhispersAbyss {
 			{
 				std::unique_lock locker(s_GnsFuncPtrsMutex);
 				if (s_fpGnsDebug || s_fpGnsStatusChanged) {
-					this->mOutput->FatalError("[Gns] Multiple instance of GnsFactory!");
+					this->mOutput->FatalError(OutputHelper::Component::GnsFactory, NO_INDEX, "Multiple instance of GnsFactory!");
 					transition.SetTransitionError(true);
 					return;
 				}
@@ -80,11 +77,19 @@ namespace WhispersAbyss {
 				}
 			});
 
-			this->mOutput->Printf("[Gns] GameNetworkingSockets_Init done.");
+			this->mOutput->Printf(OutputHelper::Component::GnsFactory, NO_INDEX, "GameNetworkingSockets_Init done.");
 
 			// end transition
 			transition.SetTransitionError(false);
 		}).detach();
+
+		mOutput->Printf(OutputHelper::Component::GnsFactory, NO_INDEX, "Instance created.");
+	}
+	GnsFactory::~GnsFactory() {
+		Stop();
+		mStatusReporter.SpinUntil(StateMachine::Stopped);
+
+		mOutput->Printf(OutputHelper::Component::GnsFactory, NO_INDEX, "Instance disposed.");
 	}
 
 	void GnsFactory::Stop() {
@@ -111,7 +116,7 @@ namespace WhispersAbyss {
 			std::this_thread::sleep_for(std::chrono::milliseconds(500));
 			GameNetworkingSockets_Kill();
 
-			mOutput->Printf("[Gns] GameNetworkingSockets_Kill done.");
+			mOutput->Printf(OutputHelper::Component::GnsFactory, NO_INDEX, "GameNetworkingSockets_Kill done.");
 
 		}).detach();
 	}
@@ -140,7 +145,7 @@ namespace WhispersAbyss {
 	ISteamNetworkingSockets* GnsFactoryOperator::GetGnsSockets() {
 		StateMachine::WorkBasedOnRunning work(mFactory->mModuleStatus);
 		if (!work.CanWork()) {
-			mFactory->mOutput->FatalError("[Gns] Out of work time calling GnsFactoryOperator::GetGnsSockets()!");
+			mFactory->mOutput->FatalError(OutputHelper::Component::GnsFactory, NO_INDEX, "Out of work time calling GnsFactoryOperator::GetGnsSockets()!");
 			return nullptr;
 		}
 
@@ -167,7 +172,7 @@ namespace WhispersAbyss {
 	GnsInstance* GnsFactory::GetConnections(std::string& server_url) {
 		StateMachine::WorkBasedOnRunning work(mModuleStatus);
 		if (!work.CanWork()) {
-			mOutput->FatalError("[Gns] Out of work time calling GnsFactory::GetConnections()!");
+			mOutput->FatalError(OutputHelper::Component::GnsFactory, NO_INDEX, "Out of work time calling GnsFactory::GetConnections()!");
 			return nullptr;
 		}
 
@@ -177,14 +182,13 @@ namespace WhispersAbyss {
 			&mSelfOperator,
 			server_url
 		);
-		instance->Start();
 		return instance;
 	}
 
 	void GnsFactory::ReturnConnections(GnsInstance* conn) {
 		StateMachine::WorkBasedOnRunning work(mModuleStatus);
 		if (!work.CanWork()) {
-			mOutput->FatalError("[Gns] Out of work time calling GnsFactory::ReturnConnections()!");
+			mOutput->FatalError(OutputHelper::Component::GnsFactory, NO_INDEX, "Out of work time calling GnsFactory::ReturnConnections()!");
 			return;
 		}
 

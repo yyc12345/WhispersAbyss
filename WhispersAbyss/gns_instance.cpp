@@ -14,10 +14,7 @@ namespace WhispersAbyss {
 		mRecvMsg(), mSendMsg(),
 		mTdCtx(),
 		mGnsConnection(k_HSteamNetConnection_Invalid), mGnsMessages(), mGnsBuffer()
-	{}
-	GnsInstance::~GnsInstance() {}
-
-	void GnsInstance::Start() {
+	{
 		std::thread([this]() -> void {
 			// start transition
 			StateMachine::TransitionInitializing transition(mModuleStatus);
@@ -30,7 +27,7 @@ namespace WhispersAbyss {
 			port = mServerUrl.substr(urlpos + 1);
 
 			// solve ip
-			mOutput->Printf("[Gns-#%" PRIu64 "] Resolving server address %s:%s", mIndex, address.c_str(), port.c_str());
+			mOutput->Printf(OutputHelper::Component::GnsInstance, mIndex, "Resolving server address %s:%s", mIndex, address.c_str(), port.c_str());
 			asio::io_context ioContext;
 			asio::ip::udp::resolver udpResolver(ioContext);
 			asio::error_code ec;
@@ -41,7 +38,7 @@ namespace WhispersAbyss {
 					auto endpoint = i.endpoint();
 					std::string connection_string;
 					connection_string = endpoint.address().to_string() + ":" + std::to_string(endpoint.port());
-					mOutput->Printf("[Gns-#%" PRIu64 "] Trying %s...", mIndex, connection_string.c_str());
+					mOutput->Printf(OutputHelper::Component::GnsInstance, mIndex, "Trying %s...", connection_string.c_str());
 					if (ConnectGns(connection_string)) {
 						// success
 						transition.SetTransitionError(false);
@@ -54,22 +51,31 @@ namespace WhispersAbyss {
 					// failed
 					this->InternalStop();
 					transition.SetTransitionError(true);
-					mOutput->Printf("[Gns-#%" PRIu64 "] Run out of resolved address.", mIndex);
+					mOutput->Printf(OutputHelper::Component::GnsInstance, mIndex, "Run out of resolved address.");
 				}
 			} else {
 				// failed
 				this->InternalStop();
 				transition.SetTransitionError(true);
-				mOutput->Printf("[Gns-#%" PRIu64 "] Fail to resolve hostname.", mIndex);
+				mOutput->Printf(OutputHelper::Component::GnsInstance, mIndex, "Fail to resolve hostname.");
 			}
 
 			// stop context
 			ioContext.stop();
 		}).detach();
+
+		mOutput->Printf(OutputHelper::Component::GnsInstance, mIndex, "Instance created.");
+	}
+	GnsInstance::~GnsInstance() {
+		Stop();
+		mStatusReporter.SpinUntil(StateMachine::Stopped);
+
+		mOutput->Printf(OutputHelper::Component::GnsInstance, mIndex, "Instance disposed.");
 	}
 
 	void GnsInstance::InternalStop() {
 		// stop steam interface
+		mOutput->Printf(OutputHelper::Component::GnsInstance, mIndex, "Closing connection...");
 		DisconnectGns();
 
 		// stop ctx worker
@@ -94,8 +100,15 @@ namespace WhispersAbyss {
 		StateMachine::WorkBasedOnRunning work(mModuleStatus);
 		if (!work.CanWork()) return;
 
-		std::lock_guard locker(mSendMsgMutex);
-		DequeOperations::MoveDeque(msg_list, mSendMsg);
+		// move msg
+		// get size outside of bracket.
+		size_t msg_list_size;
+		{
+			std::lock_guard locker(mSendMsgMutex);
+			DequeOperations::MoveDeque(msg_list, mSendMsg);
+			msg_list_size = mSendMsg.size();
+		}
+		CheckSize(msg_list_size, false);
 	}
 
 	void GnsInstance::Recv(std::deque<CommonMessage>& msg_list) {
@@ -104,6 +117,17 @@ namespace WhispersAbyss {
 
 		std::lock_guard locker(mRecvMsgMutex);
 		DequeOperations::MoveDeque(mRecvMsg, msg_list);
+	}
+
+	void GnsInstance::CheckSize(size_t msg_size, bool is_recv) {
+		const char* side = is_recv ? "Recv" : "Send";
+
+		if (msg_size >= NUKE_CAPACITY) {
+			mOutput->Printf(OutputHelper::Component::GnsInstance, mIndex, "%s message list reach nuke level: %zu. Nuke instance!!!", side, msg_size);
+			Stop();
+		} else if (msg_size >= WARNING_CAPACITY) {
+			mOutput->Printf(OutputHelper::Component::GnsInstance, mIndex, "%s message list reach warning level: %zu", side, msg_size);
+		}
 	}
 
 	void GnsInstance::CtxWorker(std::stop_token st) {
@@ -137,10 +161,14 @@ namespace WhispersAbyss {
 						has_data = true;
 					}
 					// try push message from internal buffer
+					// and check size
+					size_t msg_list_size;
 					{
 						std::lock_guard locker(mRecvMsgMutex);
 						DequeOperations::MoveDeque(mRecvMsg, incoming_message);
+						msg_list_size = mRecvMsg.size();
 					}
+					CheckSize(msg_list_size, true);
 
 				}
 			}
@@ -160,20 +188,21 @@ namespace WhispersAbyss {
 		switch (state) {
 			case k_ESteamNetworkingConnectionState_Connecting:
 			{
-				mInstance->mOutput->Printf("[Gns-#%" PRIu64 "] Connecting...", mInstance->mIndex);
+				mInstance->mOutput->Printf(OutputHelper::Component::GnsInstance, mInstance->mIndex, "Connecting...");
 				break;
 			}
 			case k_ESteamNetworkingConnectionState_Connected:
 			{
-				mInstance->mOutput->Printf("[Gns-#%" PRIu64 "] Connected.", mInstance->mIndex);
+				mInstance->mOutput->Printf(OutputHelper::Component::GnsInstance,  mInstance->mIndex, "Connected.");
 				break;
 			}
 			case k_ESteamNetworkingConnectionState_ClosedByPeer:
 			{
-				mInstance->mOutput->Printf("[Gns-#%" PRIu64 "] Connection Lost. Reason %s(%d)",
-					mInstance->mIndex,
+				mInstance->mOutput->Printf(OutputHelper::Component::GnsInstance, mInstance->mIndex, 
+					"Connection Lost. Reason %s(%d)",
 					pInfo->m_info.m_szEndDebug,
-					pInfo->m_info.m_eEndReason);
+					pInfo->m_info.m_eEndReason
+				);
 
 				// actively stop
 				mInstance->Stop();
@@ -181,10 +210,11 @@ namespace WhispersAbyss {
 			}
 			case k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
 			{
-				mInstance->mOutput->Printf("[Gns-#%" PRIu64 "] Local Error. Reason %s(%d)",
-					mInstance->mIndex,
+				mInstance->mOutput->Printf(OutputHelper::Component::GnsInstance, mInstance->mIndex, 
+					"Local Error. Reason %s(%d)",
 					pInfo->m_info.m_szEndDebug,
-					pInfo->m_info.m_eEndReason);
+					pInfo->m_info.m_eEndReason
+				);
 
 				// actively stop
 				mInstance->Stop();
@@ -192,7 +222,7 @@ namespace WhispersAbyss {
 			}
 			case k_ESteamNetworkingConnectionState_None:
 			{
-				mInstance->mOutput->Printf("[Gns-#%" PRIu64 "] Now in Disconnected status.", mInstance->mIndex);
+				mInstance->mOutput->Printf(OutputHelper::Component::GnsInstance, mInstance->mIndex, "Now in Disconnected status.");
 				break;
 			}
 			case k_ESteamNetworkingConnectionState_FindingRoute:
@@ -275,8 +305,6 @@ namespace WhispersAbyss {
 
 	void GnsInstance::DisconnectGns() {
 		if (mGnsConnection != k_HSteamNetConnection_Invalid) {
-			mOutput->Printf("[Gns-#%" PRIu64 "] Closing connection...", mIndex);
-
 			mFactoryOperator->GetGnsSockets()->CloseConnection(mGnsConnection, 0, "Goodbye from WhispersAbyss", false);
 			mFactoryOperator->UnregisterClient(mFactoryOperator->GetClientToken(this));
 			mGnsConnection = k_HSteamNetConnection_Invalid;

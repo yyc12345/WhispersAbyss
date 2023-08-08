@@ -17,42 +17,71 @@ namespace WhispersAbyss {
 
 	OutputHelper::~OutputHelper() {}
 
+#define CALL_FMT va_list ap; \
+va_start(ap, fmt); \
+PrintMessage(fmt, ap); \
+va_end(ap);
 
 	void OutputHelper::FatalError(const char* fmt, ...) {
 		PrintTimestamp();
-		va_list ap;
-		va_start(ap, fmt);
-		PrintMessage(fmt, ap);
-		va_end(ap);
-
-		// nuke process
+		CALL_FMT;
 		NukeProcess(1);
 	}
-
+	void OutputHelper::FatalError(Component comp, IndexDistributor::Index_t index, const char* fmt, ...) {
+		PrintTimestamp();
+		PrintComponent(comp, index);
+		CALL_FMT;
+		NukeProcess(1);
+	}
 	void OutputHelper::Printf(const char* fmt, ...) {
 		PrintTimestamp();
-		va_list ap;
-		va_start(ap, fmt);
-		PrintMessage(fmt, ap);
-		va_end(ap);
+		CALL_FMT;
 	}
-
+	void OutputHelper::Printf(Component comp, IndexDistributor::Index_t index, const char* fmt, ...) {
+		PrintTimestamp();
+		PrintComponent(comp, index);
+		CALL_FMT;
+	}
 	void OutputHelper::RawPrintf(const char* fmt, ...) {
-		va_list ap;
-		va_start(ap, fmt);
-		PrintMessage(fmt, ap);
-		va_end(ap);
+		CALL_FMT;
 	}
 
+#undef CALL_FMT
 
 	void OutputHelper::PrintTimestamp() {
 		float time = (float)(GetSysTimeMicros() - g_logTimeZero);
 		fprintf(stdout, "%10.6f ", time * 1e-6);
-		fflush(stdout);
+	}
+
+	void OutputHelper::PrintComponent(Component comp, IndexDistributor::Index_t index) {
+		switch (comp) {
+			case Component::TcpInstance:
+				fprintf(stdout, "[Tcp - #%" PRIu64 "] ", index);
+				break;
+			case Component::TcpFactory:
+				fputs("[Tcp Factory] ", stdout);
+				break;
+			case Component::GnsInstance:
+				fprintf(stdout, "[Gns - #%" PRIu64 "] ", index);
+				break;
+			case Component::GnsFactory:
+				fputs("[Gns Factory] ", stdout);
+				break;
+			case Component::BridgeInstance:
+				fprintf(stdout, "[Bridge - #%" PRIu64 "] ", index);
+				break;
+			case Component::BridgeFactory:
+				fputs("[Bridge Factory] ", stdout);
+				break;
+			case Component::Core:
+				fputs("[Core] ", stdout);
+				break;
+		}
 	}
 
 	void OutputHelper::PrintMessage(const char* fmt, va_list ap) {
 		vfprintf(stdout, fmt, ap);
+		fputc('\n', stdout);
 		fflush(stdout);
 	}
 

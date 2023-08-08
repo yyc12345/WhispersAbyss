@@ -3,14 +3,11 @@
 namespace WhispersAbyss {
 
 	TcpFactory::TcpFactory(OutputHelper* output, uint16_t port) :
-		mOutput(output), mModuleStatus(StateMachine::Ready), mModuleStatusReporter(mModuleStatus), mIndexDistributor(), mPort(port),
+		mOutput(output), mModuleStatus(StateMachine::Ready), mStatusReporter(mModuleStatus), mIndexDistributor(), mPort(port),
 		mIoContext(), mTcpAcceptor(mIoContext, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), mPort)),
 		mTdIoCtx(), mTdDisposal(),
 		mConnectionsMutex(), mDisposalConnsMutex(), mConnections(), mDisposalConns()
-	{}
-	TcpFactory::~TcpFactory() {}
-
-	void TcpFactory::Start() {
+	{
 		std::thread([this]() -> void {
 			// start transition
 			StateMachine::TransitionInitializing transition(mModuleStatus);
@@ -30,6 +27,14 @@ namespace WhispersAbyss {
 			// end transition
 			transition.SetTransitionError(false);
 		}).detach();
+
+		mOutput->Printf(OutputHelper::Component::TcpFactory, NO_INDEX, "Instance created.");
+	}
+	TcpFactory::~TcpFactory() {
+		Stop();
+		mStatusReporter.SpinUntil(StateMachine::Stopped);
+
+		mOutput->Printf(OutputHelper::Component::TcpFactory, NO_INDEX, "Instance disposed.");
 	}
 
 	void TcpFactory::Stop() {
@@ -63,7 +68,7 @@ namespace WhispersAbyss {
 	void TcpFactory::GetConnections(std::deque<TcpInstance*>& conn_list) {
 		StateMachine::WorkBasedOnRunning work(mModuleStatus);
 		if (!work.CanWork()) {
-			mOutput->FatalError("[Tcp] Out of work time calling TcpFactory::GetConnections()!");
+			mOutput->FatalError(OutputHelper::Component::TcpFactory, NO_INDEX, "Out of work time calling TcpFactory::GetConnections()!");
 			return;
 		}
 
@@ -74,7 +79,7 @@ namespace WhispersAbyss {
 	void TcpFactory::ReturnConnections(TcpInstance* conn) {
 		StateMachine::WorkBasedOnRunning work(mModuleStatus);
 		if (!work.CanWork()) {
-			mOutput->FatalError("[Tcp] Out of work time calling TcpFactory::ReturnConnections()!");
+			mOutput->FatalError(OutputHelper::Component::TcpFactory, NO_INDEX, "Out of work time calling TcpFactory::ReturnConnections()!");
 			return;
 		}
 
@@ -87,7 +92,6 @@ namespace WhispersAbyss {
 		TcpInstance* new_connection = new TcpInstance(mOutput, mIndexDistributor.Get(), std::move(socket));
 		{
 			std::lock_guard<std::mutex> locker(mConnectionsMutex);
-			new_connection->Start();
 			mConnections.push_back(new_connection);
 		}
 

@@ -53,7 +53,7 @@ namespace WhispersAbyss {
 		std::mutex mDisposalConnsMutex;
 		std::deque<GnsInstance*> mDisposalConns;
 	public:
-		StateMachine::StateMachineReporter mModuleStatusReporter;
+		StateMachine::StateMachineReporter mStatusReporter;
 
 	public:
 		GnsFactory(OutputHelper* output);
@@ -61,7 +61,6 @@ namespace WhispersAbyss {
 		GnsFactory(GnsFactory&& rhs) = delete;
 		~GnsFactory();
 
-		void Start();
 		void Stop();
 
 		GnsInstance* GetConnections(std::string& server_url);

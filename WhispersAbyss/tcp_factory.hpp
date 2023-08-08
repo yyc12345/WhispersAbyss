@@ -27,7 +27,7 @@ namespace WhispersAbyss {
 		std::mutex mConnectionsMutex, mDisposalConnsMutex;
 		std::deque<TcpInstance*> mConnections, mDisposalConns;
 	public:
-		StateMachine::StateMachineReporter mModuleStatusReporter;
+		StateMachine::StateMachineReporter mStatusReporter;
 
 	private:
 		void AcceptorWorker(std::error_code ec, asio::ip::tcp::socket socket);
@@ -39,7 +39,6 @@ namespace WhispersAbyss {
 		TcpFactory(TcpFactory&& rhs) = delete;
 		~TcpFactory();
 
-		void Start();
 		void Stop();
 
 		void GetConnections(std::deque<TcpInstance*>& conn_list);

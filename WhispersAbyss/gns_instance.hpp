@@ -53,11 +53,11 @@ namespace WhispersAbyss {
 		GnsInstance(GnsInstance&& rhs) = delete;
 		~GnsInstance();
 
-		void Start();
 		void Stop();
 
 		void Send(std::deque<CommonMessage>& msg_list);
 		void Recv(std::deque<CommonMessage>& msg_list);
+		void CheckSize(size_t msg_size, bool is_recv);
 	private:
 		void InternalStop();
 		void CtxWorker(std::stop_token st);
