@@ -14,20 +14,39 @@
 namespace WhispersAbyss {
 
 	using GnsUserData_t = int64;
-	class GnsInstance;
 
+	class GnsFactory;
+	class GnsInstance;
+	class GnsInstanceOperator;
+
+	class GnsFactoryOperator {
+	public:
+		GnsFactoryOperator(GnsFactory* factory) : mFactory(factory) {}
+		GnsFactoryOperator(const GnsFactoryOperator& rhs) : mFactory(rhs.mFactory) {}
+		GnsFactoryOperator(GnsFactoryOperator&& rhs) noexcept : mFactory(rhs.mFactory) {}
+		~GnsFactoryOperator() {}
+
+		ISteamNetworkingSockets* GetGnsSockets();
+
+		GnsUserData_t GetClientToken(GnsInstance* instance);
+		void RegisterClient(GnsUserData_t token, GnsInstance* instance);
+		void UnregisterClient(GnsUserData_t token);
+	private:
+		GnsFactory* mFactory;
+	};
 	class GnsFactory {
-		friend class GnsInstance;
+		friend class GnsFactoryOperator;
 	private:
 		OutputHelper* mOutput;
 		StateMachine::StateMachineCore mModuleStatus;
+		GnsFactoryOperator mSelfOperator;
 
-		std::jthread mTdDisposal;
+		std::jthread mTdDisposal, mTdPoll;
 
 		IndexDistributor mIndexDistributor;
 		ISteamNetworkingSockets* mGnsSockets;
 
-		std::map<GnsUserData_t, GnsInstance*> mRouterMap;
+		std::map<GnsUserData_t, GnsInstanceOperator> mRouterMap;
 		// Lock shared when use router. Lock unique when change router.
 		std::shared_mutex mRouterMutex;
 
@@ -38,6 +57,8 @@ namespace WhispersAbyss {
 
 	public:
 		GnsFactory(OutputHelper* output);
+		GnsFactory(const GnsFactory& rhs) = delete;
+		GnsFactory(GnsFactory&& rhs) = delete;
 		~GnsFactory();
 
 		void Start();
@@ -46,8 +67,6 @@ namespace WhispersAbyss {
 		GnsInstance* GetConnections(std::string& server_url);
 		void ReturnConnections(GnsInstance* conn);
 	protected:
-		void RegisterClient(GnsInstance* instance);
-		void UnregisterClient(GnsInstance* instance);
 
 	private:
 		void DisposalWorker(std::stop_token st);

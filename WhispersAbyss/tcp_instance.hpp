@@ -71,7 +71,7 @@ namespace WhispersAbyss {
 
 		void CheckSize(size_t msg_size);
 	public:
-		TcpInstance(OutputHelper* output, uint64_t index, asio::ip::tcp::socket socket);
+		TcpInstance(OutputHelper* output, IndexDistributor::Index_t index, asio::ip::tcp::socket socket);
 		TcpInstance(const TcpInstance& rhs) = delete;
 		TcpInstance(TcpInstance&& rhs) = delete;
 		~TcpInstance();

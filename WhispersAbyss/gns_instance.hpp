@@ -8,51 +8,64 @@
 #include <steam/isteamnetworkingsockets.h>
 #include <deque>
 #include <mutex>
+#include <string>
 
 namespace WhispersAbyss {
 
+	class GnsInstance;
 	class GnsFactory;
+	class GnsFactoryOperator;
 
+	class GnsInstanceOperator {
+	public:
+		GnsInstanceOperator(GnsInstance* instance) : mInstance(instance) {}
+		GnsInstanceOperator(const GnsInstanceOperator& rhs) : mInstance(rhs.mInstance) {}
+		GnsInstanceOperator(GnsInstanceOperator&& rhs) noexcept : mInstance(rhs.mInstance) {}
+		~GnsInstanceOperator() {}
+
+		void HandleConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* pInfo);
+	private:
+		GnsInstance* mInstance;
+	};
 	class GnsInstance {
-		friend class GnsFactory;
+		friend class GnsInstanceOperator;
 	private:
 		OutputHelper* mOutput;
 		StateMachine::StateMachineCore mModuleStatus;
+		GnsFactoryOperator* mFactoryOperator;
 
 		std::mutex mRecvMsgMutex, mSendMsgMutex;
 		std::deque<CommonMessage> mRecvMsg, mSendMsg;
 		std::string mServerUrl;
-		std::thread mTdCtx;
+		std::jthread mTdCtx;
 
+		HSteamNetConnection mGnsConnection;
+		ISteamNetworkingMessage* mGnsMessages[STEAM_MSG_CAPACITY];
+		std::string mGnsBuffer;
 
 	public:
 		StateMachine::StateMachineReporter mStatusReporter;
 		IndexDistributor::Index_t mIndex;
 
 	public:
-		GnsInstance(OutputHelper* output, std::string& server);
+		GnsInstance(OutputHelper* output, IndexDistributor::Index_t index, GnsFactoryOperator* factory_oper, std::string& server);
+		GnsInstance(const GnsInstance& rhs) = delete;
+		GnsInstance(GnsInstance&& rhs) = delete;
 		~GnsInstance();
 
 		void Start();
 		void Stop();
 
-		void Send(std::deque<CommonMessage>& manager_list);
-		void Recv(std::deque<CommonMessage>& manager_list);
-	protected:
-		void HandleConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* pInfo);
+		void Send(std::deque<CommonMessage>& msg_list);
+		void Recv(std::deque<CommonMessage>& msg_list);
 	private:
-		void ConnectWorker();
-		void StopWorker();
-		void CtxWorker();
+		void InternalStop();
+		void CtxWorker(std::stop_token st);
 
-		//std::mutex mSteamMutex;
-		//HSteamNetConnection mSteamConnection;
-		//ISteamNetworkingMessage* mSteamMessages[STEAM_MSG_CAPACITY];
-		//std::string mSteamBuffer;
-		//bool ConnectSteam(std::string* addrs);
-		//void RecvSteam(std::deque<Bmmo::Message*>* msg_list);
-		//void SendSteam(Bmmo::Message* msg);
-		//void DisconnectSteam();
+		bool ConnectGns(std::string& addrs);
+		void RecvGns(std::deque<CommonMessage>& msg_list);
+		void SendGns(std::deque<CommonMessage>& msg_list);
+		void DisconnectGns();
 	};
 }
 

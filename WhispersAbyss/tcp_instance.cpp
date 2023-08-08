@@ -60,16 +60,6 @@ namespace WhispersAbyss {
 				mTdSend.join();
 			}
 
-			// delete data
-			{
-				std::lock_guard locker(mRecvMsgMutex);
-				DequeOperations::FreeDeque(mRecvMsg);
-			}
-			{
-				std::lock_guard locker(mSendMsgMutex);
-				DequeOperations::FreeDeque(mSendMsg);
-			}
-
 			mOutput->Printf("[Gnosis-#%" PRIu64 "] Connection instance stopped.", mIndex);
 
 		}).detach();

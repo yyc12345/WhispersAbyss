@@ -25,7 +25,7 @@ namespace WhispersAbyss {
 	}
 
 	GnsFactory::GnsFactory(OutputHelper* output) :
-		mOutput(output), mModuleStatus(StateMachine::Ready), mModuleStatusReporter(mModuleStatus), 
+		mOutput(output), mModuleStatus(StateMachine::Ready), mModuleStatusReporter(mModuleStatus), mSelfOperator(this),
 		mIndexDistributor(), mGnsSockets(nullptr),
 		mRouterMap(), mRouterMutex()
 	{}
@@ -70,8 +70,15 @@ namespace WhispersAbyss {
 			// get sockets
 			this->mGnsSockets = SteamNetworkingSockets();
 
-			// preparing disposal
+			// start disposal
 			this->mTdDisposal = std::jthread(std::bind(&GnsFactory::DisposalWorker, this, std::placeholders::_1));
+			// start polling
+			this->mTdPoll = std::jthread([this](std::stop_token st) -> void {
+				while (!st.stop_requested()) {
+					this->mGnsSockets->RunCallbacks();
+					std::this_thread::sleep_for(std::chrono::milliseconds(SPIN_INTERVAL));
+				}
+			});
 
 			this->mOutput->Printf("[Gns] GameNetworkingSockets_Init done.");
 
@@ -86,6 +93,11 @@ namespace WhispersAbyss {
 			StateMachine::TransitionStopping transition(mModuleStatus);
 			if (!transition.CanTransition()) return;
 
+			// stop polling
+			if (this->mTdPoll.joinable()) {
+				this->mTdPoll.request_stop();
+				this->mTdPoll.join();
+			}
 			// set socket
 			this->mGnsSockets = nullptr;
 
@@ -108,14 +120,6 @@ namespace WhispersAbyss {
 
 #pragma region Callback dispatch
 
-	void GnsFactory::RegisterClient(GnsInstance* instance) {
-		std::unique_lock locker(mRouterMutex);
-		mRouterMap.emplace(reinterpret_cast<intptr_t>(instance), instance);
-	}
-	void GnsFactory::UnregisterClient(GnsInstance* instance) {
-		std::unique_lock locker(mRouterMutex);
-		mRouterMap.erase(reinterpret_cast<intptr_t>(instance));
-	}
 	void GnsFactory::ProcDebugOutput(ESteamNetworkingSocketsDebugOutputType eType, const char* pszMsg) {
 		if (eType == k_ESteamNetworkingSocketsDebugOutputType_Bug) mOutput->FatalError(pszMsg);
 		else mOutput->Printf(pszMsg);
@@ -125,11 +129,40 @@ namespace WhispersAbyss {
 
 		auto pair = mRouterMap.find(pInfo->m_info.m_nUserData);
 		if (pair != mRouterMap.end()) {
-			pair->second->HandleConnectionStatusChanged(pInfo);
+			pair->second.HandleConnectionStatusChanged(pInfo);
 		}
 	}
 
 #pragma endregion
+
+#pragma region Factory Operator
+
+	ISteamNetworkingSockets* GnsFactoryOperator::GetGnsSockets() {
+		StateMachine::WorkBasedOnRunning work(mFactory->mModuleStatus);
+		if (!work.CanWork()) {
+			mFactory->mOutput->FatalError("[Gns] Out of work time calling GnsFactoryOperator::GetGnsSockets()!");
+			return nullptr;
+		}
+
+		return mFactory->mGnsSockets;
+	}
+
+	GnsUserData_t GnsFactoryOperator::GetClientToken(GnsInstance* instance) {
+		return reinterpret_cast<intptr_t>(instance);
+	}
+
+	void GnsFactoryOperator::RegisterClient(GnsUserData_t token, GnsInstance* instance) {
+		std::unique_lock locker(mFactory->mRouterMutex);
+		mFactory->mRouterMap.emplace(token, GnsInstanceOperator(instance));
+	}
+
+	void GnsFactoryOperator::UnregisterClient(GnsUserData_t token) {
+		std::unique_lock locker(mFactory->mRouterMutex);
+		mFactory->mRouterMap.erase(token);
+	}
+
+#pragma endregion
+
 
 	GnsInstance* GnsFactory::GetConnections(std::string& server_url) {
 		StateMachine::WorkBasedOnRunning work(mModuleStatus);
@@ -138,7 +171,12 @@ namespace WhispersAbyss {
 			return nullptr;
 		}
 
-		GnsInstance* instance = new GnsInstance(mOutput, server_url);
+		GnsInstance* instance = new GnsInstance(
+			mOutput, 
+			mIndexDistributor.Get(),
+			&mSelfOperator,
+			server_url
+		);
 		instance->Start();
 		return instance;
 	}
