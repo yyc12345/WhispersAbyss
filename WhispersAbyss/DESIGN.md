@@ -1,0 +1,16 @@
+TcpFactory管理所有TcpInstance。  
+GnsFactory管理所有GnsInstance。
+BridgeFactory管理所有BridgeInstance。
+
+BridgeFactory接受TcpFactory实例和GnsFactory实例作为总管理。
+
+Factory具有放出Instance和回收Instance功能。  
+Instance的指针总是由Factory创建，并由Factory回收释放。
+
+Factory和Instance总是在构造函数里初始化本体。在析构函数里完全终止自己，并等待终止完全再退出
+初始化和终止总是异步的。需要借由StateMachine进行判断。
+
+Factory总是单例的。理论上所有Factory均不应创建第二个。
+在代码上，GnsFactory是绝无可能有第二个实例的。
+
+Gns中使用UserData区分不同的连接。不使用连接本身是因为在连接服务器时，连接本身还没有返回，会找不到回调对象。
