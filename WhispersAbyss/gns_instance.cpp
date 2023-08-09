@@ -32,8 +32,8 @@ namespace WhispersAbyss {
 			asio::ip::udp::resolver udpResolver(ioContext);
 			asio::error_code ec;
 			asio::ip::udp::resolver::results_type results = udpResolver.resolve(address, port, ec);
+			bool is_success = false;
 			if (!ec) {
-				bool flag_suc = false;
 				for (const auto& i : results) {
 					auto endpoint = i.endpoint();
 					std::string connection_string;
@@ -41,13 +41,13 @@ namespace WhispersAbyss {
 					mOutput->Printf(OutputHelper::Component::GnsInstance, mIndex, "Trying %s...", connection_string.c_str());
 					if (ConnectGns(connection_string)) {
 						// success
+						is_success = true;
 						transition.SetTransitionError(false);
-						flag_suc = true;
 						break;
 					}
 				}
 
-				if (!flag_suc) {
+				if (!is_success) {
 					// failed
 					this->InternalStop();
 					transition.SetTransitionError(true);
@@ -62,6 +62,12 @@ namespace WhispersAbyss {
 
 			// stop context
 			ioContext.stop();
+
+			// if success, start context worker
+			if (is_success) {
+				this->mTdCtx = std::jthread(std::bind(&GnsInstance::CtxWorker, this, std::placeholders::_1));
+			}
+
 		}).detach();
 
 		mOutput->Printf(OutputHelper::Component::GnsInstance, mIndex, "Instance created.");

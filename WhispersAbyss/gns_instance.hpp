@@ -1,6 +1,5 @@
 #pragma once
 
-#include "output_helper.hpp"
 #include "state_machine.hpp"
 #include "others_helper.hpp"
 #include "messages.hpp"

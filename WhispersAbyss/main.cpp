@@ -27,7 +27,7 @@ void MainWorker(
 
 	// core processor
 	std::deque<WhispersAbyss::TcpInstance*> conns;
-	std::deque<WhispersAbyss::LeyLinesBridge*> conn_pairs, cached_pairs;
+	std::deque<WhispersAbyss::BridgeInstance*> conn_pairs, cached_pairs;
 	bool order_profile = false;
 	while (true) {
 		// check exit
@@ -44,14 +44,14 @@ void MainWorker(
 		// getting new tcp connections
 		server.GetConnections(&conns);
 		while (conns.begin() != conns.end()) {
-			WhispersAbyss::LeyLinesBridge* bridge = new WhispersAbyss::LeyLinesBridge(&output, serverUrl, *conns.begin());
+			WhispersAbyss::BridgeInstance* bridge = new WhispersAbyss::BridgeInstance(&output, serverUrl, *conns.begin());
 			cached_pairs.push_back(bridge);
 			conns.pop_front();
 		}
 
 		// process existed conns
 		while (conn_pairs.begin() != conn_pairs.end()) {
-			WhispersAbyss::LeyLinesBridge* bridge = *conn_pairs.begin();
+			WhispersAbyss::BridgeInstance* bridge = *conn_pairs.begin();
 			bridge->ProcessBridge();
 			if (bridge->GetConnStatus() == WhispersAbyss::ModuleStatus::Stopped) {
 				// destroy this instance
@@ -86,7 +86,7 @@ void MainWorker(
 	}
 	// check stop status and wait all bridge stopped
 	while (conn_pairs.begin() != conn_pairs.end()) {
-		WhispersAbyss::LeyLinesBridge* bridge = *conn_pairs.begin();
+		WhispersAbyss::BridgeInstance* bridge = *conn_pairs.begin();
 		if (bridge->GetConnStatus() == WhispersAbyss::ModuleStatus::Stopped) {
 			delete bridge;
 			conn_pairs.pop_front();

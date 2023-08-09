@@ -4,7 +4,6 @@
 #include "asio.hpp"
 #include "others_helper.hpp"
 #include "state_machine.hpp"
-#include "output_helper.hpp"
 #include "tcp_instance.hpp"
 #include <deque>
 #include <atomic>

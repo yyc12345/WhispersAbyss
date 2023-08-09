@@ -28,13 +28,13 @@ namespace WhispersAbyss {
 			transition.SetTransitionError(false);
 		}).detach();
 
-		mOutput->Printf(OutputHelper::Component::TcpFactory, NO_INDEX, "Instance created.");
+		mOutput->Printf(OutputHelper::Component::TcpFactory, NO_INDEX, "Factory created.");
 	}
 	TcpFactory::~TcpFactory() {
 		Stop();
 		mStatusReporter.SpinUntil(StateMachine::Stopped);
 
-		mOutput->Printf(OutputHelper::Component::TcpFactory, NO_INDEX, "Instance disposed.");
+		mOutput->Printf(OutputHelper::Component::TcpFactory, NO_INDEX, "Factory disposed.");
 	}
 
 	void TcpFactory::Stop() {

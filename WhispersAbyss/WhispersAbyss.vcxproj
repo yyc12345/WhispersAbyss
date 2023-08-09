@@ -100,20 +100,18 @@
     <ClCompile Include="gns_instance.cpp" />
     <ClCompile Include="tcp_instance.cpp" />
     <ClCompile Include="tcp_factory.cpp" />
-    <ClCompile Include="leylines_bridge.cpp" />
+    <ClCompile Include="bridge_instance.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="messages.cpp" />
-    <ClCompile Include="output_helper.cpp" />
+    <ClCompile Include="others_helper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="gns_factory.hpp" />
     <ClInclude Include="gns_instance.hpp" />
     <ClInclude Include="tcp_instance.hpp" />
     <ClInclude Include="tcp_factory.hpp" />
-    <ClInclude Include="global_define.hpp" />
-    <ClInclude Include="leylines_bridge.hpp" />
+    <ClInclude Include="bridge_instance.hpp" />
     <ClInclude Include="messages.hpp" />
-    <ClInclude Include="output_helper.hpp" />
     <ClInclude Include="others_helper.hpp" />
     <ClInclude Include="state_machine.hpp" />
   </ItemGroup>

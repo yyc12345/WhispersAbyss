@@ -24,13 +24,13 @@
     <ClCompile Include="gns_instance.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="output_helper.cpp">
+    <ClCompile Include="others_helper.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="tcp_instance.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="leylines_bridge.cpp">
+    <ClCompile Include="bridge_instance.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="messages.cpp">
@@ -47,16 +47,10 @@
     <ClInclude Include="gns_instance.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="output_helper.hpp">
-      <Filter>Headers</Filter>
-    </ClInclude>
     <ClInclude Include="tcp_instance.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="global_define.hpp">
-      <Filter>Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="leylines_bridge.hpp">
+    <ClInclude Include="bridge_instance.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="others_helper.hpp">

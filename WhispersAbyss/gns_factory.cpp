@@ -83,13 +83,13 @@ namespace WhispersAbyss {
 			transition.SetTransitionError(false);
 		}).detach();
 
-		mOutput->Printf(OutputHelper::Component::GnsFactory, NO_INDEX, "Instance created.");
+		mOutput->Printf(OutputHelper::Component::GnsFactory, NO_INDEX, "Factory created.");
 	}
 	GnsFactory::~GnsFactory() {
 		Stop();
 		mStatusReporter.SpinUntil(StateMachine::Stopped);
 
-		mOutput->Printf(OutputHelper::Component::GnsFactory, NO_INDEX, "Instance disposed.");
+		mOutput->Printf(OutputHelper::Component::GnsFactory, NO_INDEX, "Factory disposed.");
 	}
 
 	void GnsFactory::Stop() {

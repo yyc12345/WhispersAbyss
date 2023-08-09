@@ -2,7 +2,6 @@
 
 #include <sdkddkver.h>	// need by asio
 #include "asio.hpp"
-#include "output_helper.hpp"
 #include "others_helper.hpp"
 #include "state_machine.hpp"
 #include "messages.hpp"
