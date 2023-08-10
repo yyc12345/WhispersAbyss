@@ -39,6 +39,9 @@
     <ClCompile Include="gns_factory.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
+    <ClCompile Include="bridge_factory.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tcp_factory.hpp">
@@ -63,6 +66,9 @@
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="gns_factory.hpp">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="bridge_factory.hpp">
       <Filter>Headers</Filter>
     </ClInclude>
   </ItemGroup>

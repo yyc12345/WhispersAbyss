@@ -96,6 +96,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="bridge_factory.cpp" />
     <ClCompile Include="gns_factory.cpp" />
     <ClCompile Include="gns_instance.cpp" />
     <ClCompile Include="tcp_instance.cpp" />
@@ -106,6 +107,7 @@
     <ClCompile Include="others_helper.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="bridge_factory.hpp" />
     <ClInclude Include="gns_factory.hpp" />
     <ClInclude Include="gns_instance.hpp" />
     <ClInclude Include="tcp_instance.hpp" />

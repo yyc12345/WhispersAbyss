@@ -9,9 +9,15 @@
 
 namespace WhispersAbyss {
 
+	struct InstanceStatus {
+		bool mIsExisted;
+		IndexDistributor::Index_t mIndex;
+		StateMachine::State_t mState;
+		bool mIsInTransition;
+	};
 	struct BridgeInstanceProfile {
 		uint64_t mRecvTcp, mSendTcp, mRecvGns, mSendGns;
-		IndexDistributor::Index_t SelfIndex, TcpIndex, GnsIndex;
+		InstanceStatus mSelfStatus, mTcpStatus, mGnsStatus;
 	};
 
 	class BridgeInstance {

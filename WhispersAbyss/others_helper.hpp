@@ -11,6 +11,7 @@ namespace WhispersAbyss {
 	constexpr const size_t STEAM_MSG_CAPACITY = 2048u;
 	constexpr const std::chrono::milliseconds SPIN_INTERVAL(10);
 	constexpr const std::chrono::milliseconds DISPOSAL_INTERVAL(500);
+	constexpr const double WAITING_COUNTDOWN = 10000;	// 10 secs
 
 	namespace DequeOperations {
 
@@ -34,6 +35,26 @@ namespace WhispersAbyss {
 		}
 
 	}
+
+	class CountDownTimer {
+	private:
+		std::chrono::steady_clock::time_point mTimeStart;
+		double mDuration;
+
+	public:
+		CountDownTimer(double duration_ms) : mTimeStart(std::chrono::steady_clock::now()), mDuration(duration_ms) {}
+		CountDownTimer(const CountDownTimer& rhs) = delete;
+		CountDownTimer(CountDownTimer&& rhs) = delete;
+		~CountDownTimer() {}
+
+		/// <summary>
+		/// Return true if run out of time
+		/// </summary>
+		bool HasRunOutOfTime() {
+			std::chrono::steady_clock::time_point timeend(std::chrono::steady_clock::now());
+			return (std::chrono::duration<double, std::micro>(timeend - mTimeStart).count() > mDuration);
+		}
+	};
 
 	class IndexDistributor {
 	public:

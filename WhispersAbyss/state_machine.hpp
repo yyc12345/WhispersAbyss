@@ -146,6 +146,17 @@ namespace WhispersAbyss::StateMachine {
 				}
 			}
 		}
+		/// <summary>
+		/// <para>Roughly get state machine status.</para>
+		/// <para>This status should only be used for display. Should not be used as requirement checker.</para>
+		/// </summary>
+		/// <param name="state"></param>
+		/// <param name="is_in_transition"></param>
+		void GetStatus(State_t& state, bool& is_in_transition) {
+			std::lock_guard locker(mStateMachine->mStateMutex);
+			state = mStateMachine->mState;
+			is_in_transition = mStateMachine->mIsInTransition;
+		}
 	private:
 		StateMachineCore* mStateMachine;
 	};

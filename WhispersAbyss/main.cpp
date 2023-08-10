@@ -1,29 +1,15 @@
-﻿#include "abyss_client.hpp"
-#include "celestia_server.hpp"
-#include "output_helper.hpp"
-#include "leylines_bridge.hpp"
+﻿#include "bridge_factory.hpp"
 #include <atomic>
 #include <conio.h>
 
 void MainWorker(
-	const char* serverUrl,
-	uint16_t acceptPort,
+	uint16_t tcp_port,
 	std::atomic_bool& signalStop,
 	std::atomic_bool& signalProfile,
 	WhispersAbyss::OutputHelper& output) {
 
-	// init steam works for abyss client
-	output.Printf("Preparing abyss...");
-	WhispersAbyss::GnsInstance::Init(&output);
-	output.Printf("Abyss started.");
-
-	// start server and client and waiting for initialize
-	// start abyss client first, because abyss client need more time to init
-	output.Printf("Preparing celestia...");
-	WhispersAbyss::TcpFactory server(&output, acceptPort);
-	server.Start();
-	while (!server.mIsRunning.load());
-	output.Printf("Celestia started.");
+	// init factory
+	WhispersAbyss::BridgeFactory factory(&output, tcp_port);
 
 	// core processor
 	std::deque<WhispersAbyss::TcpInstance*> conns;
@@ -32,92 +18,43 @@ void MainWorker(
 	while (true) {
 		// check exit
 		if (signalStop.load()) break;
-		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		std::this_thread::sleep_for(std::chrono::milliseconds(WhispersAbyss::DISPOSAL_INTERVAL));
 
 		// get whether need profile
 		order_profile = false;
 		order_profile = signalProfile.exchange(order_profile);
 		if (order_profile) {
 			output.Printf("Start collecting profile...");
+			factory.ReportStatus();
 		}
 
-		// getting new tcp connections
-		server.GetConnections(&conns);
-		while (conns.begin() != conns.end()) {
-			WhispersAbyss::BridgeInstance* bridge = new WhispersAbyss::BridgeInstance(&output, serverUrl, *conns.begin());
-			cached_pairs.push_back(bridge);
-			conns.pop_front();
-		}
-
-		// process existed conns
-		while (conn_pairs.begin() != conn_pairs.end()) {
-			WhispersAbyss::BridgeInstance* bridge = *conn_pairs.begin();
-			bridge->ProcessBridge();
-			if (bridge->GetConnStatus() == WhispersAbyss::ModuleStatus::Stopped) {
-				// destroy this instance
-				delete bridge;
-			} else {
-				// otherwise, push into list for next query
-				cached_pairs.push_back(bridge);
-			}
-			conn_pairs.pop_front();
-		}
-
-		// move back conn_pairs
-		// and check profile if need
-		while (cached_pairs.begin() != cached_pairs.end()) {
-			if (order_profile) {
-				(*cached_pairs.begin())->ReportStatus();
-			}
-			conn_pairs.push_back(*cached_pairs.begin());
-			cached_pairs.pop_front();
-		}
 	}
 
-	// stop celestia server first to reject more incoming connetions
-	output.Printf("Stoping celestia...");
-	server.Stop();
-	output.Printf("Celestia stoped.");
-
-	output.Printf("Stoping bridges...");
-	// actively order stop
-	for (auto it = conn_pairs.begin(); it != conn_pairs.end(); ++it) {
-		(*it)->ActiveStop();
-	}
-	// check stop status and wait all bridge stopped
-	while (conn_pairs.begin() != conn_pairs.end()) {
-		WhispersAbyss::BridgeInstance* bridge = *conn_pairs.begin();
-		if (bridge->GetConnStatus() == WhispersAbyss::ModuleStatus::Stopped) {
-			delete bridge;
-			conn_pairs.pop_front();
-		} else std::this_thread::sleep_for(std::chrono::milliseconds(10));
-	}
-	output.Printf("All bridges stoped.");
-
-	output.Printf("Stoping abyss...");
-	WhispersAbyss::GnsInstance::Dispose();
-	output.Printf("Abyss Client stoped.");
+	// stop factory
+	factory.Stop();
+	factory.mStatusReporter.SpinUntil(WhispersAbyss::StateMachine::Stopped);
 }
 
 int main(int argc, char* argv[]) {
 
-	puts("Whispers Abyss - A sh*t protocol converter.");
-	puts("");
-	puts("From the ashes to this world anew.");
-	puts("Ah... How brightly burned the oath. Hear the inferno's call.");
-	puts("Now... Is the time for my second coming.");
-	puts("");
-	puts("======");
-	puts("");
+	WhispersAbyss::OutputHelper output;
+
+	output.RawPrintf("Whispers Abyss - A sh*t protocol converter.");
+	output.RawPrintf("");
+	output.RawPrintf("From the ashes to this world anew.");
+	output.RawPrintf("Ah... How brightly burned the oath. Hear the inferno's call.");
+	output.RawPrintf("Now... Is the time for my second coming.");
+	output.RawPrintf("");
+	output.RawPrintf("======");
+	output.RawPrintf("");
 
 	// ========== Check Parameter ==========
-	if (argc != 3) {
+	if (argc != 2) {
 		puts("Wrong arguments.");
-		puts("Syntax: WhispersAbyss [accept_port] [server_address]");
+		puts("Syntax: WhispersAbyss [accept_port]");
 		puts("Program will exit. See README.md for more detail about commandline arguments.");
 		return 0;
 	}
-	char* argsServerUrl = argv[2];
 	long int argsAcceptPort = strtoul(argv[1], NULL, 10);
 	if (argsAcceptPort == LONG_MAX || argsAcceptPort == LONG_MIN || argsAcceptPort > 65535u) {
 		puts("Wrong arguments. Port value is illegal.");
@@ -131,16 +68,14 @@ int main(int argc, char* argv[]) {
 	std::atomic_bool signalStop, signalProfile;
 	signalStop.store(false);
 
-	WhispersAbyss::OutputHelper outputHelper;
 
 	// start worker
 	std::thread tdMainWorker(
 		&MainWorker,
-		argsServerUrl,
-		6172,
+		static_cast<uint16_t>(argsAcceptPort),
 		std::ref(signalStop),
 		std::ref(signalProfile),
-		std::ref(outputHelper)
+		std::ref(output)
 	);
 
 	// accept input
@@ -161,7 +96,7 @@ int main(int argc, char* argv[]) {
 			}
 			default:
 			{
-				puts("Invalid command!");
+				output.RawPrintf("Invalid command!");
 				break;
 			}
 
@@ -173,7 +108,8 @@ exit_program:
 	if (tdMainWorker.joinable())
 		tdMainWorker.join();
 
-	outputHelper.Printf("See ya~");
+	output.RawPrintf("======");
+	output.RawPrintf("See ya~");
 
 	return 0;
 }

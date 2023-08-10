@@ -17,6 +17,7 @@ namespace WhispersAbyss {
 
 			// try get status or order from tcp connection
 			std::string url;
+			CountDownTimer waiting(WAITING_COUNTDOWN);
 			while (true) {
 				if (mTcpInstance->mStatusReporter.IsInState(StateMachine::Stopped)) {
 					// crash before getting it.
@@ -29,6 +30,14 @@ namespace WhispersAbyss {
 					url = mTcpInstance->GetOrderedUrl();
 					if (url.empty()) {
 						std::this_thread::sleep_for(SPIN_INTERVAL);
+
+						if (waiting.HasRunOutOfTime()) {
+							// wait enough times (around 10s). no response. disconnect.
+							mOutput->Printf(OutputHelper::Component::BridgeInstance, mIndex, "Run out of time of waiting instance ordering URL.");
+							transition.SetTransitionError(true);
+							this->InternalStop();
+							return;
+						}
 					}
 				}
 			}
@@ -89,10 +98,30 @@ namespace WhispersAbyss {
 	}
 
 	BridgeInstanceProfile BridgeInstance::ReportStatus() {
-		return BridgeInstanceProfile{
-			mRecvTcp.load(), mSendTcp.load(), mRecvGns.load(), mSendGns.load(),
-			mIndex, (mTcpInstance ? mTcpInstance->mIndex : 0u), (mGnsInstance ? mGnsInstance->mIndex : 0u)
-		};
+		BridgeInstanceProfile profile;
+
+		profile.mRecvTcp = mRecvTcp.load();
+		profile.mSendTcp = mSendTcp.load();
+		profile.mRecvGns = mRecvGns.load();
+		profile.mSendGns = mSendGns.load();
+
+		profile.mSelfStatus.mIsExisted = true;
+		profile.mSelfStatus.mIndex = mIndex;
+		mStatusReporter.GetStatus(profile.mSelfStatus.mState, profile.mSelfStatus.mIsInTransition);
+
+		profile.mTcpStatus.mIsExisted = mTcpInstance != nullptr;
+		if (profile.mTcpStatus.mIsExisted) {
+			profile.mTcpStatus.mIndex = mTcpInstance->mIndex;
+			mTcpInstance->mStatusReporter.GetStatus(profile.mTcpStatus.mState, profile.mTcpStatus.mIsInTransition);
+		}
+
+		profile.mGnsStatus.mIsExisted = mGnsInstance != nullptr;
+		if (profile.mGnsStatus.mIsExisted) {
+			profile.mGnsStatus.mIndex = mGnsInstance->mIndex;
+			mGnsInstance->mStatusReporter.GetStatus(profile.mGnsStatus.mState, profile.mGnsStatus.mIsInTransition);
+		}
+
+		return profile;
 	}
 
 	void BridgeInstance::CtxWorker(std::stop_token st) {
