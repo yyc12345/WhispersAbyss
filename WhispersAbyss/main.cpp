@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
 	// ========== Check Parameter ==========
 	if (argc != 2) {
 		puts("Wrong arguments.");
-		puts("Syntax: WhispersAbyss [accept_port]");
+		puts("Syntax: WhispersAbyss [tcp_port]");
 		puts("Program will exit. See README.md for more detail about commandline arguments.");
 		return 0;
 	}
@@ -65,9 +65,7 @@ int main(int argc, char* argv[]) {
 
 	// ==========Real Work ==========
 	// allocate signal for worker
-	std::atomic_bool signalStop, signalProfile;
-	signalStop.store(false);
-
+	std::atomic_bool signalStop(false), signalProfile(false);
 
 	// start worker
 	std::thread tdMainWorker(

@@ -103,26 +103,24 @@ namespace WhispersAbyss {
 	}
 
 	void GnsInstance::Send(std::deque<CommonMessage>& msg_list) {
-		StateMachine::WorkBasedOnRunning work(mModuleStatus);
-		if (!work.CanWork()) return;
+		if (!mStatusReporter.IsInState(StateMachine::Running)) return;
 
 		// move msg
 		// get size outside of bracket.
 		size_t msg_list_size;
 		{
 			std::lock_guard locker(mSendMsgMutex);
-			DequeOperations::MoveDeque(msg_list, mSendMsg);
+			CommonOpers::MoveDeque(msg_list, mSendMsg);
 			msg_list_size = mSendMsg.size();
 		}
 		CheckSize(msg_list_size, false);
 	}
 
 	void GnsInstance::Recv(std::deque<CommonMessage>& msg_list) {
-		StateMachine::WorkBasedOnRunning work(mModuleStatus);
-		if (!work.CanWork()) return;
+		if (!mStatusReporter.IsInState(StateMachine::Running)) return;
 
 		std::lock_guard locker(mRecvMsgMutex);
-		DequeOperations::MoveDeque(mRecvMsg, msg_list);
+		CommonOpers::MoveDeque(mRecvMsg, msg_list);
 	}
 
 	void GnsInstance::CheckSize(size_t msg_size, bool is_recv) {
@@ -140,49 +138,47 @@ namespace WhispersAbyss {
 		std::deque<CommonMessage> incoming_message, outbound_message;
 
 		while (!st.stop_requested()) {
-			bool can_work = false;
-			bool has_data = false;
-			{
-				StateMachine::WorkBasedOnRunning work(mModuleStatus);
-				can_work = work.CanWork();
-				if (work.CanWork()) {
-					// ================= Message Sender =================
-					// copy message to internal buffer
-					{
-						std::lock_guard locker(mSendMsgMutex);
-						DequeOperations::MoveDeque(mSendMsg, outbound_message);
-					}
-					// process it if has message
-					if (!outbound_message.empty()) {
-						has_data = true;
-						SendGns(outbound_message);
-					}
-
-
-					// ================= Message Receiver =================
-					// receive msg and check size
-					size_t count = incoming_message.size();
-					RecvGns(incoming_message);
-					if (count != incoming_message.size()) {
-						has_data = true;
-					}
-					// try push message from internal buffer
-					// and check size
-					size_t msg_list_size;
-					{
-						std::lock_guard locker(mRecvMsgMutex);
-						DequeOperations::MoveDeque(mRecvMsg, incoming_message);
-						msg_list_size = mRecvMsg.size();
-					}
-					CheckSize(msg_list_size, true);
-
-				}
+			// if not in work. spin until it can work.
+			if (!mStatusReporter.IsInState(StateMachine::Running)) {
+				std::this_thread::sleep_for(SPIN_INTERVAL);
+				continue;
 			}
 
-			// if no work or no data
-			// sleep
-			if (!can_work || !has_data) {
+			bool has_data = false;
+			// ================= Message Sender =================
+			// copy message to internal buffer
+			{
+				std::lock_guard locker(mSendMsgMutex);
+				CommonOpers::MoveDeque(mSendMsg, outbound_message);
+			}
+			// process it if has message
+			if (!outbound_message.empty()) {
+				has_data = true;
+				SendGns(outbound_message);
+			}
+
+
+			// ================= Message Receiver =================
+			// receive msg and check size
+			size_t count = incoming_message.size();
+			RecvGns(incoming_message);
+			if (count != incoming_message.size()) {
+				has_data = true;
+			}
+			// try push message from internal buffer
+			// and check size
+			size_t msg_list_size;
+			{
+				std::lock_guard locker(mRecvMsgMutex);
+				CommonOpers::MoveDeque(mRecvMsg, incoming_message);
+				msg_list_size = mRecvMsg.size();
+			}
+			CheckSize(msg_list_size, true);
+
+			// if this round no data. sleep more time
+			if (!has_data) {
 				std::this_thread::sleep_for(SPIN_INTERVAL);
+				continue;
 			}
 		}
 

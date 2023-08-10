@@ -14,3 +14,16 @@ Factory总是单例的。理论上所有Factory均不应创建第二个。
 在代码上，GnsFactory是绝无可能有第二个实例的。
 
 Gns中使用UserData区分不同的连接。不使用连接本身是因为在连接服务器时，连接本身还没有返回，会找不到回调对象。
+
+TcpInstance和GnsInstance：
+* Send和Recv是通过锁mutex然后把数据放到instance内部的send/recv deque里。它们不需要占据工作状态的判断，因为deque释放的时候内部的CommonMessage不是pointer会自动释放。
+* ContextWorker也要具有面对异常出现的能力，也不需要占据工作状态。因为异常出现是随机的，不会说我锁死了我要正在工作，拒绝transition，就不会有异常发生。
+
+因此StateMachine只需要两个基本能力：
+1. 保证transition运行的排他性（任何时刻最多只有一个Transition在运行），和Run-Once性（同一个StateMachine中的同一个Transition仅运行一次）。
+2. 保证State的线程安全。且Stopped后不会进行改变
+
+DisposalHelper是从Factory里独立出来的设计。  
+负责的内容就是回收Factory中产生的废旧Instance*。
+他是依附于Factory的，实际上就是一个代码的简化，因此它本身不设计为线程安全的。  
+由调用者（Factory），通过StateMachine机制，确保各个方法之间的顺序。

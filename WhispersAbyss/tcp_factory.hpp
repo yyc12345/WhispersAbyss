@@ -21,17 +21,16 @@ namespace WhispersAbyss {
 		asio::ip::tcp::acceptor mTcpAcceptor;
 		
 		std::thread mTdIoCtx;
-		std::jthread mTdDisposal;
+		DisposalHelper<TcpInstance*> mDisposal;
 
-		std::mutex mConnectionsMutex, mDisposalConnsMutex;
-		std::deque<TcpInstance*> mConnections, mDisposalConns;
+		std::mutex mConnectionsMutex;
+		std::deque<TcpInstance*> mConnections;
 	public:
 		StateMachine::StateMachineReporter mStatusReporter;
 
 	private:
 		void AcceptorWorker(std::error_code ec, asio::ip::tcp::socket socket);
 		void RegisterAsyncWork();
-		void DisposalWorker(std::stop_token st);
 	public:
 		TcpFactory(OutputHelper* output, uint16_t port);
 		TcpFactory(const TcpFactory& rhs) = delete;

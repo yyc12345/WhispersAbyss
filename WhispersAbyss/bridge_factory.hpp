@@ -20,10 +20,12 @@ namespace WhispersAbyss {
 		TcpFactory mTcpFactory;
 		GnsFactory mGnsFactory;
 
-		std::mutex mInstancesMutex, mDisposalsMutex;
-		std::deque<BridgeInstance*> mInstances, mDisposals;
+		std::mutex mInstancesMutex;
+		std::deque<BridgeInstance*> mInstances;
 
-		std::jthread mTdCtx, mTdDisposal;
+		std::jthread mTdCtx;
+
+		DisposalHelper<BridgeInstance*> mDisposal;
 	public:
 		StateMachine::StateMachineReporter mStatusReporter;
 
@@ -38,7 +40,6 @@ namespace WhispersAbyss {
 	private:
 		void InternalStop();
 		void CtxWorker(std::stop_token st);
-		void DisposalWorker(std::stop_token st);
 	};
 
 }

@@ -3,17 +3,41 @@
 #include <mutex>
 #include <chrono>
 #include <deque>
+#include <functional>
+#include <stdexcept>
 
 namespace WhispersAbyss {
 
 	constexpr const size_t NUKE_CAPACITY = 3072u;
 	constexpr const size_t WARNING_CAPACITY = 2048u;
 	constexpr const size_t STEAM_MSG_CAPACITY = 2048u;
-	constexpr const std::chrono::milliseconds SPIN_INTERVAL(10);
-	constexpr const std::chrono::milliseconds DISPOSAL_INTERVAL(500);
-	constexpr const double WAITING_COUNTDOWN = 10000;	// 10 secs
 
-	namespace DequeOperations {
+	/// <summary>
+	/// The interval for spin wait.
+	/// </summary>
+	constexpr const std::chrono::milliseconds SPIN_INTERVAL(10);
+	/// <summary>
+	/// Bridge factory used context worker interval
+	/// </summary>
+	constexpr const std::chrono::milliseconds BRIDGE_INTERVAL(50);
+	/// <summary>
+	/// The interval for disposal worker
+	/// </summary>
+	constexpr const std::chrono::milliseconds DISPOSAL_INTERVAL(500);
+	/// <summary>
+	/// The interval for waiting module starting to running.
+	/// </summary>
+	constexpr const double MODULE_WAITING_INTERVAL = 10000;	// 10 secs
+
+	namespace StateMachine {
+		using State_t = uint32_t;
+		constexpr const State_t None = 0;
+		constexpr const State_t Ready = 0b1;
+		constexpr const State_t Running = 0b10;
+		constexpr const State_t Stopped = 0b100;
+	}
+
+	namespace CommonOpers {
 
 		template<class T>
 		void MoveDeque(std::deque<T>& _from, std::deque<T>& _to) {
@@ -24,14 +48,6 @@ namespace WhispersAbyss {
 			);
 
 			_from.erase(_from.begin(), _from.end());
-		}
-
-		template<class T>
-		void FreeDeque(std::deque<T>& _data) {
-			//for (auto& ptr : _data) {
-			//	delete ptr;
-			//}
-			_data.erase(_data.begin(), _data.end());
 		}
 
 	}
@@ -84,6 +100,83 @@ namespace WhispersAbyss {
 		std::deque<Index_t> mReturnedIndex;
 	};
 	constexpr const IndexDistributor::Index_t NO_INDEX = 0u;
+
+	template<class _Ty, std::enable_if_t<std::is_pointer_v<_Ty>, int> = 0>
+	class DisposalHelper {
+	public:
+		/// <summary>
+		/// The function pointet which can destroy provided data. including destroy its pointer.
+		/// </summary>
+		using DestroyFunc_t = std::function<void(_Ty)>;
+	private:
+		std::mutex mMutex;
+		std::jthread mTdDisposal;
+		std::deque<_Ty> mDequeDisposal;
+		DestroyFunc_t mDestroyFunc;
+
+	public:
+		DisposalHelper() :
+			mMutex(),
+			mTdDisposal(), mDequeDisposal(),
+			mDestroyFunc(nullptr)
+		{}
+		DisposalHelper(const DisposalHelper& rhs) = delete;
+		DisposalHelper(DisposalHelper&& rhs) = delete;
+		~DisposalHelper() {}
+
+		/*
+		We only make sure Move(...) is atomic.
+		Because this is a helper class. Caller must make sure Start(), Stop(), Move() can not be called at the same time.
+		*/
+
+		void Start(DestroyFunc_t pfDestroy) {
+			if (pfDestroy == nullptr) throw std::logic_error("DestroyFunc_t should not be nullptr!");
+			mDestroyFunc = pfDestroy;
+			mTdDisposal = std::jthread(std::bind(&DisposalHelper::DisposalWorker, this, std::placeholders::_1));
+		}
+		void Stop() {
+			if (this->mTdDisposal.joinable()) {
+				this->mTdDisposal.request_stop();
+				this->mTdDisposal.join();
+			}
+		}
+		void Move(_Ty v) {
+			std::lock_guard locker(mMutex);
+			mDequeDisposal.emplace_back(v);
+		}
+		void Move(std::deque<_Ty>& v) {
+			std::lock_guard locker(mMutex);
+			CommonOpers::MoveDeque(v, mDequeDisposal);
+		}
+	private:
+		void DisposalWorker(std::stop_token st) {
+			std::deque<_Ty> cache;
+			while (true) {
+				// copy first
+				{
+					std::lock_guard<std::mutex> locker(mMutex);
+					CommonOpers::MoveDeque(mDequeDisposal, cache);
+				}
+
+				// no item
+				if (cache.empty()) {
+					// quit if ordered.
+					if (st.stop_requested()) return;
+					// otherwise sleep
+					std::this_thread::sleep_for(DISPOSAL_INTERVAL);
+					continue;
+				}
+
+				// stop them one by one until all of them stopped.
+				// then return index and free them.
+				for (auto& ptr : cache) {
+					mDestroyFunc(ptr);
+				}
+				cache.clear();
+			}
+		}
+
+	};
 
 	class OutputHelper {
 	public:

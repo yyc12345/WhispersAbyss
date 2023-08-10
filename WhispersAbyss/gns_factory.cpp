@@ -25,9 +25,11 @@ namespace WhispersAbyss {
 	}
 
 	GnsFactory::GnsFactory(OutputHelper* output) :
-		mOutput(output), mModuleStatus(StateMachine::Ready), mStatusReporter(mModuleStatus), mSelfOperator(this),
-		mIndexDistributor(), mGnsSockets(nullptr),
-		mRouterMap(), mRouterMutex()
+		mOutput(output), mModuleStatus(StateMachine::Ready), mStatusReporter(mModuleStatus), mIndexDistributor(),
+		mSelfOperator(this), mGnsSockets(nullptr),
+		mRouterMap(), mRouterMutex(),
+		mTdPoll(),
+		mDisposal()
 	{
 		std::thread([this]() -> void {
 			// start transition
@@ -68,12 +70,18 @@ namespace WhispersAbyss {
 			this->mGnsSockets = SteamNetworkingSockets();
 
 			// start disposal
-			this->mTdDisposal = std::jthread(std::bind(&GnsFactory::DisposalWorker, this, std::placeholders::_1));
+			this->mDisposal.Start([this](GnsInstance* instance) -> void {
+				instance->Stop();
+				instance->mStatusReporter.SpinUntil(StateMachine::Stopped);
+				this->mIndexDistributor.Return(instance->mIndex);
+				delete instance;
+			});
+
 			// start polling
 			this->mTdPoll = std::jthread([this](std::stop_token st) -> void {
 				while (!st.stop_requested()) {
 					this->mGnsSockets->RunCallbacks();
-					std::this_thread::sleep_for(std::chrono::milliseconds(SPIN_INTERVAL));
+					std::this_thread::sleep_for(SPIN_INTERVAL);
 				}
 			});
 
@@ -107,10 +115,7 @@ namespace WhispersAbyss {
 			this->mGnsSockets = nullptr;
 
 			// wait disposal worker exit
-			if (this->mTdDisposal.joinable()) {
-				this->mTdDisposal.request_stop();
-				this->mTdDisposal.join();
-			}
+			this->mDisposal.Stop();
 
 			// destroy steam work
 			std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -143,8 +148,7 @@ namespace WhispersAbyss {
 #pragma region Factory Operator
 
 	ISteamNetworkingSockets* GnsFactoryOperator::GetGnsSockets() {
-		StateMachine::WorkBasedOnRunning work(mFactory->mModuleStatus);
-		if (!work.CanWork()) {
+		if (!mFactory->mStatusReporter.IsInState(StateMachine::Running)) {
 			mFactory->mOutput->FatalError(OutputHelper::Component::GnsFactory, NO_INDEX, "Out of work time calling GnsFactoryOperator::GetGnsSockets()!");
 			return nullptr;
 		}
@@ -170,8 +174,7 @@ namespace WhispersAbyss {
 
 
 	GnsInstance* GnsFactory::GetConnections(std::string& server_url) {
-		StateMachine::WorkBasedOnRunning work(mModuleStatus);
-		if (!work.CanWork()) {
+		if (!mStatusReporter.IsInState(StateMachine::Running)) {
 			mOutput->FatalError(OutputHelper::Component::GnsFactory, NO_INDEX, "Out of work time calling GnsFactory::GetConnections()!");
 			return nullptr;
 		}
@@ -186,43 +189,12 @@ namespace WhispersAbyss {
 	}
 
 	void GnsFactory::ReturnConnections(GnsInstance* conn) {
-		StateMachine::WorkBasedOnRunning work(mModuleStatus);
-		if (!work.CanWork()) {
+		if (!mStatusReporter.IsInState(StateMachine::Running)) {
 			mOutput->FatalError(OutputHelper::Component::GnsFactory, NO_INDEX, "Out of work time calling GnsFactory::ReturnConnections()!");
 			return;
 		}
 
-		std::lock_guard locker(mDisposalConnsMutex);
-		mDisposalConns.push_back(conn);
+		mDisposal.Move(conn);
 	}
 	
-	void GnsFactory::DisposalWorker(std::stop_token st) {
-		std::deque<GnsInstance*> cache;
-		while (true) {
-			// copy first
-			{
-				std::lock_guard<std::mutex> locker(mDisposalConnsMutex);
-				DequeOperations::MoveDeque(mDisposalConns, cache);
-			}
-
-			// no item
-			if (cache.empty()) {
-				// quit if ordered.
-				if (st.stop_requested()) return;
-				// otherwise sleep
-				std::this_thread::sleep_for(std::chrono::milliseconds(DISPOSAL_INTERVAL));
-				continue;
-			}
-
-			// stop them one by one until all of them stopped.
-			// then return index and free them.
-			for (auto& ptr : cache) {
-				ptr->Stop();
-				ptr->mStatusReporter.SpinUntil(StateMachine::Stopped);
-				mIndexDistributor.Return(ptr->mIndex);
-				delete ptr;
-			}
-		}
-	}
-
 }

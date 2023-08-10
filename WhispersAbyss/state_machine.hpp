@@ -1,17 +1,11 @@
 #pragma once
+#include "others_helper.hpp"
 #include <cinttypes>
 #include <mutex>
 #include <chrono>
 #include <deque>
 
 namespace WhispersAbyss::StateMachine {
-
-	using State_t = uint32_t;
-	constexpr const State_t None = 0;
-	constexpr const State_t Ready = 0b1;
-	constexpr const State_t Running = 0b10;
-	constexpr const State_t Stopped = 0b100;
-	constexpr const std::chrono::milliseconds SPIN_INTERVAL(10);
 
 	/*
 	There are 3 possible state for StateMachineCore.
@@ -46,7 +40,7 @@ namespace WhispersAbyss::StateMachine {
 		friend class WorkBasedOnRunning;
 	public:
 		StateMachineCore(State_t init_state) :
-			mState(init_state), mIsInTransition(false), mWorkCount(0u),
+			mState(init_state), mIsInTransition(false),
 			mHasRunInitializing(false), mHasRunStopping(false),
 			mRefCounter(0u), mStateMutex() {}
 		~StateMachineCore() {
@@ -75,12 +69,6 @@ namespace WhispersAbyss::StateMachine {
 		/// <para>If state machine is in transition, reject other transition request, reject Running based work.</para>
 		/// </summary>
 		bool mIsInTransition;
-		/// <summary>
-		/// <para>The count of Running based work.</para>
-		/// <para>If this count != 0, Stopping transition request will be blocked until all work done.</para>
-		/// <para>Allow multiple Running based work. The count is recorded in there.</para>
-		/// </summary>
-		uint32_t mWorkCount;
 
 		/// <summary>
 		/// True if a Initializing transition has been run.
@@ -233,7 +221,7 @@ namespace WhispersAbyss::StateMachine {
 			while (true) {
 				mStateMachine->mStateMutex.lock();
 
-				if (mStateMachine->mIsInTransition || mStateMachine->mWorkCount != 0u) {
+				if (mStateMachine->mIsInTransition) {
 					mStateMachine->mStateMutex.unlock();
 					std::this_thread::sleep_for(SPIN_INTERVAL);
 					continue;
@@ -270,45 +258,6 @@ namespace WhispersAbyss::StateMachine {
 	private:
 		StateMachineCore* mStateMachine;
 		bool mCanTransition;
-	};
-
-	class WorkBasedOnRunning {
-	public:
-		WorkBasedOnRunning(StateMachineCore& sm) :
-			mStateMachine(&sm), mCanWork(false) {
-			std::lock_guard locker(mStateMachine->mStateMutex);
-			mStateMachine->IncRefCounter();
-
-			// if in running state, and no transition running, start work
-			if (mStateMachine->mState == Running && !mStateMachine->mIsInTransition) {
-				mCanWork = true;
-				++mStateMachine->mWorkCount;
-			} else {
-				mCanWork = false;
-			}
-		}
-		~WorkBasedOnRunning() {
-			std::lock_guard locker(mStateMachine->mStateMutex);
-			mStateMachine->DecRefCounter();
-
-			if (mCanWork) {
-				// make sure no lower overflow.
-				if (mStateMachine->mWorkCount != 0u) {
-					--mStateMachine->mWorkCount;
-				}
-			}
-		}
-		WorkBasedOnRunning(const WorkBasedOnRunning& rhs) = delete;
-		WorkBasedOnRunning(WorkBasedOnRunning&& rhs) = delete;
-
-		/// <summary>
-		/// Check whether caller can start Running based work.
-		/// </summary>
-		/// <returns></returns>
-		bool CanWork() { return mCanWork; }
-	private:
-		StateMachineCore* mStateMachine;
-		bool mCanWork;
 	};
 
 }

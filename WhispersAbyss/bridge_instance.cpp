@@ -17,7 +17,7 @@ namespace WhispersAbyss {
 
 			// try get status or order from tcp connection
 			std::string url;
-			CountDownTimer waiting(WAITING_COUNTDOWN);
+			CountDownTimer waiting(MODULE_WAITING_INTERVAL);
 			while (true) {
 				if (mTcpInstance->mStatusReporter.IsInState(StateMachine::Stopped)) {
 					// crash before getting it.
@@ -127,53 +127,52 @@ namespace WhispersAbyss {
 	void BridgeInstance::CtxWorker(std::stop_token st) {
 		std::deque<CommonMessage> msgtcp2gns, msggns2tcp;
 		uint64_t count, allcount;
-		bool can_work;
 
 		while (!st.stop_requested()) {
-			// check work status
-			can_work = false;
-			allcount = 0u;
-			{
-				StateMachine::WorkBasedOnRunning work(mModuleStatus);
-				can_work = work.CanWork();
-				if (work.CanWork()) {
-
-					// check 2 instance status
-					if (mGnsInstance->mStatusReporter.IsInState(StateMachine::Stopped) ||
-						mTcpInstance->mStatusReporter.IsInState(StateMachine::Stopped)) {
-						this->Stop();
-						return;
-					}
-
-					// move msg data
-					// and collect data count
-					// ==================== Tcp 2 Gns ====================
-					count = msgtcp2gns.size();
-					mTcpInstance->Recv(msgtcp2gns);
-					mRecvTcp.fetch_add(msgtcp2gns.size() - count);
-					allcount += msgtcp2gns.size() - count;
-
-					count = msgtcp2gns.size();
-					mGnsInstance->Send(msgtcp2gns);
-					mSendGns.fetch_add(count - msgtcp2gns.size());
-					allcount += count - msgtcp2gns.size();
-
-					// ==================== Gns 2 Tco ====================
-					count = msggns2tcp.size();
-					mGnsInstance->Recv(msggns2tcp);
-					mRecvGns.fetch_add(msggns2tcp.size() - count);
-					allcount += msggns2tcp.size() - count;
-
-					count = msggns2tcp.size();
-					mTcpInstance->Send(msggns2tcp);
-					mSendTcp.fetch_add(count - msggns2tcp.size());
-					allcount += count - msggns2tcp.size();
-
-				}
+			// if it can not work, wait
+			if (mStatusReporter.IsInState(StateMachine::Running)) {
+				std::this_thread::sleep_for(SPIN_INTERVAL);
+				continue;
 			}
 
-			// if no data or no work, sleep a while
-			if (!can_work || allcount == 0u) {
+			// start working
+			allcount = 0u;
+
+
+			// check 2 instance status
+			if (mGnsInstance->mStatusReporter.IsInState(StateMachine::Stopped) ||
+				mTcpInstance->mStatusReporter.IsInState(StateMachine::Stopped)) {
+				this->Stop();
+				return;
+			}
+
+			// move msg data
+			// and collect data count
+			// ==================== Tcp 2 Gns ====================
+			count = msgtcp2gns.size();
+			mTcpInstance->Recv(msgtcp2gns);
+			mRecvTcp.fetch_add(msgtcp2gns.size() - count);
+			allcount += msgtcp2gns.size() - count;
+
+			count = msgtcp2gns.size();
+			mGnsInstance->Send(msgtcp2gns);
+			mSendGns.fetch_add(count - msgtcp2gns.size());
+			allcount += count - msgtcp2gns.size();
+
+			// ==================== Gns 2 Tco ====================
+			count = msggns2tcp.size();
+			mGnsInstance->Recv(msggns2tcp);
+			mRecvGns.fetch_add(msggns2tcp.size() - count);
+			allcount += msggns2tcp.size() - count;
+
+			count = msggns2tcp.size();
+			mTcpInstance->Send(msggns2tcp);
+			mSendTcp.fetch_add(count - msggns2tcp.size());
+			allcount += count - msggns2tcp.size();
+
+
+			// if no data, sleep a while
+			if (allcount == 0u) {
 				std::this_thread::sleep_for(SPIN_INTERVAL);
 			}
 

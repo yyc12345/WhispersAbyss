@@ -64,31 +64,28 @@ namespace WhispersAbyss {
 	}
 
 	void TcpInstance::Send(std::deque<CommonMessage>& msg_list) {
-		StateMachine::WorkBasedOnRunning work(mModuleStatus);
-		if (!work.CanWork()) return;
+		if (!mStatusReporter.IsInState(StateMachine::Running)) return;
 
 		// move msg
 		// get size outside of bracket.
 		size_t msg_list_size;
 		{
 			std::lock_guard locker(mSendMsgMutex);
-			DequeOperations::MoveDeque(msg_list, mSendMsg);
+			CommonOpers::MoveDeque(msg_list, mSendMsg);
 			msg_list_size = mSendMsg.size();
 		}
 		CheckSize(msg_list_size, false);
 	}
 
 	void TcpInstance::Recv(std::deque<CommonMessage>& msg_list) {
-		StateMachine::WorkBasedOnRunning work(mModuleStatus);
-		if (!work.CanWork()) return;
+		if (!mStatusReporter.IsInState(StateMachine::Running)) return;
 
 		std::lock_guard locker(mRecvMsgMutex);
-		DequeOperations::MoveDeque(mRecvMsg, msg_list);
+		CommonOpers::MoveDeque(mRecvMsg, msg_list);
 	}
 
 	std::string TcpInstance::GetOrderedUrl() {
-		StateMachine::WorkBasedOnRunning work(mModuleStatus);
-		if (!work.CanWork()) return std::string();
+		if (!mStatusReporter.IsInState(StateMachine::Running)) return std::string();
 
 		return mOrderedUrl;
 	}
@@ -110,18 +107,16 @@ namespace WhispersAbyss {
 
 		while (!st.stop_requested()) {
 			// wait if socket is not worked
-			if (!mSocket.is_open()) {
-				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			// wait if not in running
+			if (!mSocket.is_open() || !mStatusReporter.IsInState(StateMachine::Running)) {
+				std::this_thread::sleep_for(std::chrono::milliseconds(SPIN_INTERVAL));
 				continue;
 			}
 
 			// copy message to internal buffer
 			{
-				StateMachine::WorkBasedOnRunning work(mModuleStatus);
-				if (work.CanWork()) {
-					std::lock_guard locker(mSendMsgMutex);
-					DequeOperations::MoveDeque(mSendMsg, intermsg);
-				}
+				std::lock_guard locker(mSendMsgMutex);
+				CommonOpers::MoveDeque(mSendMsg, intermsg);
 			}
 
 			// if no message. sleep and continue
@@ -179,14 +174,14 @@ namespace WhispersAbyss {
 		while (!st.stop_requested()) {
 			// wait if socket is not worked
 			if (!mSocket.is_open()) {
-				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+				std::this_thread::sleep_for(std::chrono::milliseconds(SPIN_INTERVAL));
 				continue;
 			}
 
 			// recv msg size
 			asio::read(mSocket, asio::buffer(&mMsgSize, sizeof(uint32_t)), ec);
 			if (ec) {
-				mOutput->Printf(OutputHelper::Component::TcpInstance, mIndex, "Fail to read header: %s",  ec.message().c_str());
+				mOutput->Printf(OutputHelper::Component::TcpInstance, mIndex, "Fail to read header: %s", ec.message().c_str());
 				this->Stop();
 				return;
 			}
@@ -254,16 +249,15 @@ namespace WhispersAbyss {
 			// try move all intermsg to recv msg.
 			// if we cant, wait next time to move.
 			size_t msg_list_size = 0u;
-			{
-				StateMachine::WorkBasedOnRunning work(mModuleStatus);
-				if (work.CanWork()) {
-					std::lock_guard locker(mRecvMsgMutex);
-					DequeOperations::MoveDeque(intermsg, mRecvMsg);
-					msg_list_size = mRecvMsg.size();
-				}
+			if (mStatusReporter.IsInState(StateMachine::Running)) {
+				std::lock_guard locker(mRecvMsgMutex);
+				CommonOpers::MoveDeque(intermsg, mRecvMsg);
+				msg_list_size = mRecvMsg.size();
 			}
 			// check size at the same time
 			CheckSize(msg_list_size, true);
+
+			// end of a loop of recver
 		}
 	}
 

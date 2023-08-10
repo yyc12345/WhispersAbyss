@@ -5,8 +5,9 @@ namespace WhispersAbyss {
 	TcpFactory::TcpFactory(OutputHelper* output, uint16_t port) :
 		mOutput(output), mModuleStatus(StateMachine::Ready), mStatusReporter(mModuleStatus), mIndexDistributor(), mPort(port),
 		mIoContext(), mTcpAcceptor(mIoContext, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), mPort)),
-		mTdIoCtx(), mTdDisposal(),
-		mConnectionsMutex(), mDisposalConnsMutex(), mConnections(), mDisposalConns()
+		mTdIoCtx(),
+		mConnectionsMutex(), mConnections(),
+		mDisposal()
 	{
 		std::thread([this]() -> void {
 			// start transition
@@ -22,7 +23,12 @@ namespace WhispersAbyss {
 			});
 
 			// preparing disposal
-			this->mTdDisposal = std::jthread(std::bind(&TcpFactory::DisposalWorker, this, std::placeholders::_1));
+			this->mDisposal.Start([this](TcpInstance* instance) -> void {
+				instance->Stop();
+				instance->mStatusReporter.SpinUntil(StateMachine::Stopped);
+				this->mIndexDistributor.Return(instance->mIndex);
+				delete instance;
+			});
 
 			// end transition
 			transition.SetTransitionError(false);
@@ -53,38 +59,32 @@ namespace WhispersAbyss {
 
 			// move all pending connections into disposal list
 			{
-				std::scoped_lock locker(mConnectionsMutex, mDisposalConnsMutex);
-				DequeOperations::MoveDeque(mConnections, mDisposalConns);
+				std::lock_guard locker(mConnectionsMutex);
+				mDisposal.Move(mConnections);
 			}
 
 			// wait disposal worker exit
-			if (this->mTdDisposal.joinable()) {
-				this->mTdDisposal.request_stop();
-				this->mTdDisposal.join();
-			}
+			mDisposal.Stop();
 		}).detach();
 	}
 
 	void TcpFactory::GetConnections(std::deque<TcpInstance*>& conn_list) {
-		StateMachine::WorkBasedOnRunning work(mModuleStatus);
-		if (!work.CanWork()) {
+		if (!mStatusReporter.IsInState(StateMachine::Running)) {
 			mOutput->FatalError(OutputHelper::Component::TcpFactory, NO_INDEX, "Out of work time calling TcpFactory::GetConnections()!");
 			return;
 		}
 
 		std::lock_guard<std::mutex> locker(mConnectionsMutex);
-		DequeOperations::MoveDeque(mConnections, conn_list);
+		CommonOpers::MoveDeque(mConnections, conn_list);
 	}
 
 	void TcpFactory::ReturnConnections(TcpInstance* conn) {
-		StateMachine::WorkBasedOnRunning work(mModuleStatus);
-		if (!work.CanWork()) {
+		if (!mStatusReporter.IsInState(StateMachine::Running)) {
 			mOutput->FatalError(OutputHelper::Component::TcpFactory, NO_INDEX, "Out of work time calling TcpFactory::ReturnConnections()!");
 			return;
 		}
 
-		std::lock_guard<std::mutex> locker(mDisposalConnsMutex);
-		mDisposalConns.push_back(conn);
+		mDisposal.Move(conn);
 	}
 
 	void TcpFactory::AcceptorWorker(std::error_code ec, asio::ip::tcp::socket socket) {
@@ -104,35 +104,5 @@ namespace WhispersAbyss {
 			&TcpFactory::AcceptorWorker, this, std::placeholders::_1, std::placeholders::_2
 		));
 	}
-
-	void TcpFactory::DisposalWorker(std::stop_token st) {
-		std::deque<TcpInstance*> cache;
-		while (true) {
-			// copy first
-			{
-				std::lock_guard<std::mutex> locker(mDisposalConnsMutex);
-				DequeOperations::MoveDeque(mDisposalConns, cache);
-			}
-
-			// no item
-			if (cache.empty()) {
-				// quit if ordered.
-				if (st.stop_requested()) return;
-				// otherwise sleep
-				std::this_thread::sleep_for(std::chrono::milliseconds(DISPOSAL_INTERVAL));
-				continue;
-			}
-
-			// stop them one by one until all of them stopped.
-			// then return index and free them.
-			for (auto& ptr : cache) {
-				ptr->Stop();
-				ptr->mStatusReporter.SpinUntil(StateMachine::Stopped);
-				mIndexDistributor.Return(ptr->mIndex);
-				delete ptr;
-			}
-		}
-	}
-
 
 }

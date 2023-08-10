@@ -5,8 +5,9 @@ namespace WhispersAbyss {
 	BridgeFactory::BridgeFactory(OutputHelper* output, uint16_t tcp_port) :
 		mOutput(output), mModuleStatus(StateMachine::Ready), mStatusReporter(mModuleStatus), mIndexDistributor(),
 		mTcpFactory(output, tcp_port), mGnsFactory(output),
-		mInstances(), mInstancesMutex(), mDisposals(), mDisposalsMutex(),
-		mTdCtx()
+		mInstances(), mInstancesMutex(),
+		mTdCtx(),
+		mDisposal()
 	{
 		std::thread([this]() -> void {
 			// start transition
@@ -14,7 +15,7 @@ namespace WhispersAbyss {
 			if (!transition.CanTransition()) return;
 
 			// wait them
-			CountDownTimer waiting(WAITING_COUNTDOWN);
+			CountDownTimer waiting(MODULE_WAITING_INTERVAL);
 			while (true) {
 				if (mTcpFactory.mStatusReporter.IsInState(StateMachine::Stopped) ||
 					mGnsFactory.mStatusReporter.IsInState(StateMachine::Stopped)) {
@@ -42,6 +43,14 @@ namespace WhispersAbyss {
 			// Start context
 			this->mTdCtx = std::jthread(std::bind(&BridgeFactory::CtxWorker, this, std::placeholders::_1));
 
+			// start disposal
+			this->mDisposal.Start([this](BridgeInstance* instance) -> void {
+				instance->Stop();
+				instance->mStatusReporter.SpinUntil(StateMachine::Stopped);
+				this->mIndexDistributor.Return(instance->mIndex);
+				delete instance;
+			});
+
 			// end transition
 			transition.SetTransitionError(false);
 		}).detach();
@@ -64,13 +73,10 @@ namespace WhispersAbyss {
 
 		// move all bridge instance to disposal and wait disposal exit
 		{
-			std::scoped_lock locker(mInstancesMutex, mDisposalsMutex);
-			DequeOperations::MoveDeque(mInstances, mDisposals);
+			std::lock_guard locker(mInstancesMutex);
+			this->mDisposal.Move(mInstances);
 		}
-		if (mTdDisposal.joinable()) {
-			mTdDisposal.request_stop();
-			mTdDisposal.join();
-		}
+		this->mDisposal.Stop();
 
 		// stop 2 factory
 		mTcpFactory.Stop();
@@ -110,71 +116,42 @@ namespace WhispersAbyss {
 		std::deque<BridgeInstance*> cache;
 
 		while (!st.stop_requested()) {
-			{
-				StateMachine::WorkBasedOnRunning work(mModuleStatus);
-				if (work.CanWork()) {
-
-					// get new tcp incoming
-					mTcpFactory.GetConnections(new_incoming);
-					for (auto& ptr : new_incoming) {
-						cache.push_back(new BridgeInstance(
-							mOutput,
-							&mTcpFactory,
-							&mGnsFactory,
-							ptr,
-							mIndexDistributor.Get()
-						));
-					}
-
-					{
-						std::scoped_lock locker(mInstancesMutex, mDisposalsMutex);
-						// process old bridges
-						for (auto& instance : mInstances) {
-							if (instance->mStatusReporter.IsInState(StateMachine::Stopped)) {
-								mDisposals.push_back(instance);
-							} else {
-								cache.push_back(instance);
-							}
-						}
-						// replace instances
-						mInstances.clear();
-						DequeOperations::MoveDeque(cache, mInstances);
-					}
-
-				}
-			}
-
-			// in any case, sleep. sleep like disposal long time.
-			std::this_thread::sleep_for(DISPOSAL_INTERVAL);
-		}
-	}
-
-	void BridgeFactory::DisposalWorker(std::stop_token st) {
-		std::deque<BridgeInstance*> cache;
-		while (true) {
-			// copy first
-			{
-				std::lock_guard<std::mutex> locker(mDisposalsMutex);
-				DequeOperations::MoveDeque(mDisposals, cache);
-			}
-
-			// no item
-			if (cache.empty()) {
-				// quit if ordered.
-				if (st.stop_requested()) return;
-				// otherwise sleep
-				std::this_thread::sleep_for(std::chrono::milliseconds(DISPOSAL_INTERVAL));
+			// if not in running. spin
+			if (!mStatusReporter.IsInState(StateMachine::Running)) {
+				std::this_thread::sleep_for(SPIN_INTERVAL);
 				continue;
 			}
 
-			// stop them one by one until all of them stopped.
-			// then return index and free them.
-			for (auto& ptr : cache) {
-				ptr->Stop();
-				ptr->mStatusReporter.SpinUntil(StateMachine::Stopped);
-				mIndexDistributor.Return(ptr->mIndex);
-				delete ptr;
+
+			// get new tcp incoming
+			mTcpFactory.GetConnections(new_incoming);
+			for (auto& ptr : new_incoming) {
+				cache.push_back(new BridgeInstance(
+					mOutput,
+					&mTcpFactory,
+					&mGnsFactory,
+					ptr,
+					mIndexDistributor.Get()
+				));
 			}
+
+			{
+				std::lock_guard locker(mInstancesMutex);
+				// process old bridges
+				for (auto& instance : mInstances) {
+					if (instance->mStatusReporter.IsInState(StateMachine::Stopped)) {
+						mDisposal.Move(instance);
+					} else {
+						cache.push_back(instance);
+					}
+				}
+				// replace instances
+				mInstances.clear();
+				CommonOpers::MoveDeque(cache, mInstances);
+			}
+
+			// in any case, sleep. sleep like disposal long time.
+			std::this_thread::sleep_for(BRIDGE_INTERVAL);
 		}
 	}
 

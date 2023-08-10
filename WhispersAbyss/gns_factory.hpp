@@ -38,19 +38,18 @@ namespace WhispersAbyss {
 	private:
 		OutputHelper* mOutput;
 		StateMachine::StateMachineCore mModuleStatus;
-		GnsFactoryOperator mSelfOperator;
-
-		std::jthread mTdDisposal, mTdPoll;
-
 		IndexDistributor mIndexDistributor;
+
+		std::jthread mTdPoll;
+
+		GnsFactoryOperator mSelfOperator;
 		ISteamNetworkingSockets* mGnsSockets;
 
 		std::map<GnsUserData_t, GnsInstanceOperator> mRouterMap;
 		// Lock shared when use router. Lock unique when change router.
 		std::shared_mutex mRouterMutex;
 
-		std::mutex mDisposalConnsMutex;
-		std::deque<GnsInstance*> mDisposalConns;
+		DisposalHelper<GnsInstance*> mDisposal;
 	public:
 		StateMachine::StateMachineReporter mStatusReporter;
 
@@ -67,8 +66,6 @@ namespace WhispersAbyss {
 	protected:
 
 	private:
-		void DisposalWorker(std::stop_token st);
-
 		void ProcDebugOutput(ESteamNetworkingSocketsDebugOutputType eType, const char* pszMsg);
 		void ProcConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* pInfo);
 	};

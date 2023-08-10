@@ -11,6 +11,8 @@
 
 namespace WhispersAbyss {
 
+#pragma region OutputHelper
+
 	OutputHelper::OutputHelper() {
 		g_logTimeZero = GetSysTimeMicros();
 	}
@@ -116,4 +118,8 @@ va_end(ap);
 		return 0;
 	}
 
+#pragma endregion
+
+
 }
+
