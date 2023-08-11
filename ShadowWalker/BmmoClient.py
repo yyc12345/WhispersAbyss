@@ -1,18 +1,22 @@
 import BmmoProto
-import threading
-import io
-import socket
-import time
 import OutputHelper
-import struct
-import traceback
+import threading, io, socket, time, struct, traceback
 
-class ModuleStatus:
+class State:
     Ready = 0
-    Initializing = 1
-    Running = 2
-    Stopping = 3
-    Stopped = 4
+    Running = 1
+    Stopped = 2
+class StateMachine:
+    __mState: State
+    __mIsInTransition: bool
+    __mHasRunStopping: bool
+    __mMutex: threading.Lock
+
+    def __init__(self, func_init):
+        pass
+
+    def Stop(self, func_stop):
+        pass
 
 class BmmoClient:
     def __init__(self, output: OutputHelper.OutputHelper):

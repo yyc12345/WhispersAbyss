@@ -1,9 +1,7 @@
-import BmmoContext
+#import BmmoContext
 import OutputHelper
 import GetchHelper
-import time
-import sys
-import re
+import time, sys, re, argparse
 
 mOutputHelper = OutputHelper.OutputHelper()
 mOutputHelper.Print("ShadowWalker")
@@ -11,57 +9,50 @@ mOutputHelper.Print("==========")
 mOutputHelper.Print("")
 
 # analyse parameter
-if len(sys.argv) != 4:
-    print("Wrong arguments.")
-    print("Syntax: python3 ShadowWalker.py [port] [username] [uuid]")
-    print("Program will exit. See README.md for more detail about commandline arguments.")
-    sys.exit(1)
-
-# get str args
-argsParsedFailed = False
-strPort = sys.argv[1]
-strUsername = sys.argv[2]
-strUuid = sys.argv[3].lower()
-
-# check port
-if not re.match('[0-9]+', strPort):
-    argsParsedFailed = True
-else:
-    strPort = int(strPort)
-    if strPort > 65535 or strPort < 0:
-        argsParsedFailed = True
-    else:
-        argsPort = strPort
-
-# check username
-if not re.match('^[_0-9a-zA-Z]+$', strUsername):
-    argsParsedFailed = True
-else:
-    argsUsername = strUsername
-
-# check uuid
+# define some arg regulator
 def hex_ascii_to_int(hexnum):
     idx = ord(hexnum)
     if idx <= ord('9'):
         return idx - ord('0')
     else:
         return idx - ord('a') + 10
-if not re.match('^[0-9a-f]{8}\-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', strUuid):
-    argsParsedFailed = True
-else:
-    strUuid = strUuid.replace('-', '')
-    argsUuid = []
+
+def regulator_port(strl: str) -> int:
+    if not re.match('[0-9]+', strl): raise argparse.ArgumentTypeError("Invalid port.")
+    port = int(strl)
+    if port > 65535 or port < 0: raise argparse.ArgumentTypeError("Port out of range: (0, 65535).")
+    return port
+def regulator_server_url(strl: str) -> str:
+    urlsp = strl.split(':')
+    if len(urlsp) != 2: raise argparse.ArgumentTypeError("Invalid server url.")
+    regulator_port(urlsp[1])
+    return strl
+def regulator_username(strl: str) -> str:
+    if not re.match('^[_0-9a-zA-Z]+$', strl): raise argparse.ArgumentTypeError("Invalid username.")
+    return strl
+def regulator_uuid(strl: str) -> tuple[int]:
+    if not re.match('^[0-9a-f]{8}\-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', strl):
+        raise argparse.ArgumentTypeError("Invalid uuid.")
+    struuid = strl.replace('-', '')
+    uuid: tuple[int] = []
     for i in range(16):
-        value = hex_ascii_to_int(strUuid[i*2]) << 4
-        value += hex_ascii_to_int(strUuid[i*2+1])
-        argsUuid.append(value)
+        value = hex_ascii_to_int(struuid[i * 2]) << 4
+        value += hex_ascii_to_int(struuid[i * 2 + 1])
+        uuid.append(value)
+    return tuple(uuid)
 
-if argsParsedFailed:
-    print("Wrong arguments. Arguments value is illegal.")
-    print("Syntax: python3 ShadowWalker.py [port] [username] [uuid]")
-    print("Program will exit. See README.md for more detail about commandline arguments.")
-    sys.exit(1)
+# setup parser
+parser = argparse.ArgumentParser(description='The Walker of BallanceMMO.')
+parser.add_argument('-p', '--local-port', required=True, type=regulator_port, action='store', dest='local_port', metavar='6172')
+parser.add_argument('-u', '--server-url', required=True, type=regulator_server_url, action='store', dest='server_url', metavar='127.0.0.1:25565')
+parser.add_argument('-n', '--username', required=True, type=regulator_username, action='store', dest='username', metavar='ShadowPower')
+parser.add_argument('-i', '--uuid', required=True, type=regulator_uuid, action='store', dest='uuid', metavar='11451400-1140-1140-1140-114514114514')
 
+# parse arg
+args = parser.parse_args()
+print(args)
+
+"""
 # start context
 mBmmoCtx = BmmoContext.BmmoContext(mOutputHelper, "127.0.0.1", argsPort, argsUsername, tuple(argsUuid))
 while True:
@@ -88,4 +79,5 @@ while True:
     if mBmmoCtx.IsDead():
         break
     time.sleep(0.01)
+"""
 
