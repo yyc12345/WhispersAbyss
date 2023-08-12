@@ -1,265 +1,238 @@
 import BmmoProto
 import OutputHelper
-import threading, io, socket, time, struct, traceback
-
-class State:
-    Ready = 0
-    Running = 1
-    Stopped = 2
-class StateMachine:
-    __mState: State
-    __mIsInTransition: bool
-    __mHasRunStopping: bool
-    __mMutex: threading.Lock
-
-    def __init__(self, func_init):
-        pass
-
-    def Stop(self, func_stop):
-        pass
+import MessagePatcher, CppHelper
+import threading, io, socket, time, struct, traceback, collections
 
 class BmmoClient:
-    def __init__(self, output: OutputHelper.OutputHelper):
-        self._mRecvMsgMutex = threading.Lock()
-        self._mSendMsgMutex = threading.Lock()
-        self._mSendMsg = []
-        self._mRecvMsg = []
+    __mStateMachine: CppHelper.StateMachine
+    __mOutput: OutputHelper.OutputHelper
+    __mConn: socket.socket
 
-        #self._mStopCtx = False
-        #self._mStopCtxMutex = threading.Lock()
-        self._mStatus = ModuleStatus.Ready
-        self._mStatusMutex = threading.Lock()
+    __mConnHost: str
+    __mConnPort: int
+    __mConnRemoteUrl: str
 
-        self._mConn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #self._mConn.settimeout(3)
+    __mRecvMsgMutex: threading.Lock
+    __mSendMsgMutex: threading.Lock
+    __mRecvMsg: collections.deque[BmmoProto.BpMessage]
+    __mSendMsg: collections.deque[BmmoProto.BpMessage]
+    __mTdSend: CppHelper.JThread
+    __mTdRecv: CppHelper.JThread
 
-        self._mTdSender = None
-        self._mTdRecver = None
+    def __init__(self, output: OutputHelper.OutputHelper, local_host: str, local_port: int, remote_url: str):
+        self.__mStateMachine = CppHelper.StateMachine()
+        self.__mOutput = output
+        self.__mConn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        self._mOutput = output
-        self._mOutput.Print("[BmmoClient] Initialized.")
+        self.__mConnHost = local_host
+        self.__mConnPort = local_port
+        self.__mConnRemoteUrl = remote_url
 
-    def Start(self, host: str, port: int):
-        # check requirements and change status
-        self._mStatusMutex.acquire()
-        need_return = self._mStatus != ModuleStatus.Ready
-        if not need_return:
-            self._mStatus = ModuleStatus.Initializing
-        self._mStatusMutex.release()
-        if need_return:
-            return
+        self.__mRecvMsgMutex = threading.Lock()
+        self.__mSendMsgMutex = threading.Lock()
+        self.__mSendMsg = collections.deque()
+        self.__mRecvMsg = collections.deque()
 
+        self.__mConn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        #self.__mConn.settimeout(3)
+
+        self.__mTdSend = None
+        self.__mTdRecv = None
+
+        self.__mOutput.Print("[BmmoClient] Created.")
+
+    def __StartWorker(self) -> bool:
         try:
-            # start socket and thread
-            self._mConn.connect((host, port))
-            self._mTdSender = threading.Thread(target = self._SendWorker)
-            self._mTdSender.start()
-            self._mTdRecver = threading.Thread(target = self._RecvWorker)
-            self._mTdRecver.start()
+            # start socket
+            self.__mConn.connect((self.__mConnHost, self.__mConnPort))
         except Exception as e:
-            # call stop
-            self._mOutput.Print("[BmmoClient] Fail to start.\nReason: {}".format(e))
-            self.Stop()
+            # order stop
+            self.__mOutput.Print(f"[BmmoClient] Fail to start.\n\tReason: {e}")
+            self.__mConn.close()
+            return False
         else:
-            self._mStatusMutex.acquire()
-            self._mStatus = ModuleStatus.Running
-            self._mStatusMutex.release()
-            self._mOutput.Print("[BmmoClient] Started.")
+            # start send recv threads
+            self.__mTdSender = CppHelper.JThread(self.__SendWorker)
+            self.__mTdSender.start()
+            self.__mTdRecver = CppHelper.JThread(self.__RecvWorker)
+            self.__mTdRecver.start()
+            self.__mOutput.Print("[BmmoClient] Started.")
+        return True
+    def Start(self):
+        self.__mStateMachine.InitTransition(self.__StartWorker)
 
-    def Stop(self):
-        # check requirements and change status
-        self._mStatusMutex.acquire()
-        need_return = self._mStatus != ModuleStatus.Running and self._mStatus != ModuleStatus.Initializing
-        if not need_return:
-            self._mStatus = ModuleStatus.Stopping
-        self._mStatusMutex.release()
-        if need_return:
-            return
-
-        # use a thread to stop everything
-        td_stop_worker = threading.Thread(target = self._StopWorker)
-        td_stop_worker.start()
-
-    def GetStatus(self):
-        self._mStatusMutex.acquire()
-        cache = self._mStatus
-        self._mStatusMutex.release()
-        return cache
-
-    def Send(self, msg):
-        self._mSendMsgMutex.acquire()
-        self._mSendMsg.append(msg)
-        self._mSendMsgMutex.release()
-
-    def Recv(self) -> list:
-        self._mRecvMsgMutex.acquire()
-        if len(self._mRecvMsg) != 0:
-            cache = self._mRecvMsg;
-            self._mRecvMsg = []
-        else:
-            cache = []
-        self._mRecvMsgMutex.release()
-        return cache
-
-    def _StopWorker(self):
-        # if _RecverWorker call self.Stop()
-        # it will cause self join self error
-        # so we need to open a new thread to join all the threads
-        # and set status
-
+    def __StopWorker(self):
         # stop socket
-        self._mOutput.Print("[BmmoClient] Closing connection...")
-        self._mConn.close();
+        self.__mOutput.Print("[BmmoClient] Closing connection...")
+        self.__mConn.close();
         # stop thread
-        self._mOutput.Print("[BmmoClient] Stopping threads...")
-        if self._mTdSender is not None:
-            self._mTdSender.join()
-            self._mTdSender = None
-        if self._mTdRecver is not None:
-            self._mTdRecver.join()
-            self._mTdRecver = None
+        self.__mOutput.Print("[BmmoClient] Stopping threads...")
+        if self.__mTdSend is not None and self.__mTdSend.is_alive():
+            self.__mTdSend.request_stop()
+            self.__mTdSend.join()
+            self.__mTdSend = None
+        if self.__mTdRecv is not None and self.__mTdRecv.is_alive():
+            self.__mTdRecv.request_stop()
+            self.__mTdRecv.join()
+            self.__mTdRecv = None
 
         # set status
-        self._mStatusMutex.acquire()
-        self._mStatus = ModuleStatus.Stopped
-        self._mStatusMutex.release()
-        self._mOutput.Print("[BmmoClient] Stopped.")
+        self.__mOutput.Print("[BmmoClient] Stopped.")
+    def Stop(self):
+        self.__mStateMachine.StopTransition(self.__StopWorker)
 
-    def _SocketSendHelper(self, msg) -> bool:
+    def GetStateMachine(self) -> CppHelper.StateMachine:
+        return self.__mStateMachine
+
+    def Send(self, msg: BmmoProto.BpMessage):
+        if self.__mStateMachine.IsInState(CppHelper.State.Running):
+            with self.__mSendMsgMutex:
+                self.__mSendMsg.append(msg)
+    def Recv(self, ls: collections.deque[BmmoProto.BpMessage]):
+        if self.__mStateMachine.IsInState(CppHelper.State.Running):
+            with self.__mRecvMsgMutex:
+                ls.extend(self.__mRecvMsg)
+                self.__mRecvMsg.clear()
+
+    def __SocketSendHelper(self, msg: bytes) -> bool:
         msglen = len(msg)
         totalsent = 0
-
         try:
             while totalsent < msglen:
-                sent = self._mConn.send(msg[totalsent:])
+                sent = self.__mConn.send(msg[totalsent:])
                 if sent == 0:
                     raise RuntimeError("socket connection broken")
                 totalsent = totalsent + sent
-        except:
+        except Exception as e:
+            self.__mOutput.Print(f"[BmmoClient] Error when sending: {e}")
+            self.Stop()
             return False
-
         return True
-
-    def _SocketRecvHelper(self, msglen: int) -> tuple:
-        chunks = []
+    def __SocketRecvHelper(self, msglen: int) -> tuple[int, bytes]:
+        chunks: bytes = b''
         bytes_recd = 0
-
         try:
             while bytes_recd < msglen:
-                chunk = self._mConn.recv(min(msglen - bytes_recd, 2048))
+                chunk = self.__mConn.recv(min(msglen - bytes_recd, 2048))
                 if chunk == b'':
                     raise RuntimeError("socket connection broken")
-                chunks.append(chunk)
+                chunks += chunk
                 bytes_recd = bytes_recd + len(chunk)
-        except:
+        except Exception as e:
+            self.__mOutput.Print(f"[BmmoClient] Error when recving: {e}")
+            self.Stop()
             return (False, b'')
+        return (True, chunks)
+    
+    __sFmtHeader: struct.Struct = struct.Struct("=IB")
+    __sFmtHeaderData: struct.Struct = struct.Struct("=B")
+    __sFmtHeaderCmd: struct.Struct = struct.Struct("=I")
+    def __SendWorker(self):
+        ss: io.BytesIO = io.BytesIO()
+        has_sent_url: bool = False
+        send_messages: collections.deque[BmmoProto.BpMessage] = collections.deque()
 
-        return (True, b''.join(chunks))
-
-    def _SendWorker(self):
-        ss = io.BytesIO()
+        msg_patcher: MessagePatcher.MessagePatcher = MessagePatcher.MessagePatcher()
 
         while True:
-            # check exit requirement
-            self._mStatusMutex.acquire()
-            cache_status = self._mStatus
-            self._mStatusMutex.release()
-            if cache_status == ModuleStatus.Stopping:
-                self._mOutput.Print("[BmmoClient] Sender detected stop status.")
-                break
-            if cache_status != ModuleStatus.Running:
-                time.sleep(0.01)
+            if not self.__mStateMachine.IsInState(CppHelper.State.Running):
+                time.sleep(CppHelper.SPIN_INTERVAL)
                 continue
+            
+            # if we still don't send url, send it first
+            if not has_sent_url:
+                # get essential data
+                raw_data = self.__mConnRemoteUrl.encode('utf-8', errors='ignore')
+                raw_data_len = len(raw_data)
 
+                # send header
+                if not self.__SocketSendHelper(self.__sFmtHeader.pack(raw_data_len + 1 + 4, 1) + self.__sFmtHeaderCmd.pack(raw_data_len)):
+                    # `+ 1 + 4` for 2 extra fields. `1` mean this msg is command msg
+                    return
+                # send body
+                if not self._SocketSendHelper(raw_data):
+                    return
+                
+                # mark has sent
+                has_sent_url = True
+            
             # get send message list
-            self._mSendMsgMutex.acquire()
-            send_messages = self._mSendMsg
-            self._mSendMsg = []
-            self._mSendMsgMutex.release()
+            with self.__mSendMsgMutex:
+                send_messages.extend(self.__mSendMsg)
+                self.__mSendMsg.clear()
             
             # send all messages
-            if len(send_messages) == 0:
-                time.sleep(0.01)
-                continue
             for msg in send_messages:
                 # clean ss
-                ss.seek(io.SEEK_SET, 0)
+                ss.seek(0, io.SEEK_SET)
                 ss.truncate(0)
+
                 # serialize
                 try:
-                    msg.Serialize(ss)
+                    BmmoProto.UniformSerialize(msg, ss)
                 except Exception as e:
-                    self._mOutput.Print("[BmmoClient] Error when serializing msg.\nReason: {}\nUnfinished message payload: {}".format(e, ss.getvalue()))
+                    self.__mOutput.Print(f"[BmmoClient] Error when deserializing msg.\n\tReason: {e}\n\tMessage payload: {ss.getvalue()}")
                     traceback.print_exc()
                     continue
 
+                # patch serialized msg
+                msg_patcher.PatchSend(ss)
+
                 # get essential data
                 raw_data = ss.getvalue()
-                raw_data_len = ss.tell()
-                is_reliable = 1 if msg.GetIsReliable() else 0
+                raw_data_len = len(raw_data)
+                is_reliable: int = 1 if msg.IsReliable() else 0
 
                 # send header
-                ec = self._SocketSendHelper(struct.pack("II", raw_data_len, is_reliable))
-                if not ec:
-                    self._mOutput.Print("[BmmoClient] Error when sending msg header.")
-                    self.Stop()
-                    break
+                if not self.__SocketSendHelper(self.__sFmtHeader.pack(raw_data_len + 1 + 1, 0) + self.__sFmtHeaderData.pack(is_reliable)):
+                    # `+ 1 + 1` for 2 extra fields. `0` mean this msg is not command msg
+                    return
                 # send body
-                ec = self._SocketSendHelper(raw_data)
-                if not ec:
-                    self._mOutput.Print("[BmmoClient] Error when sending msg body.")
-                    self.Stop()
-                    break
+                if not self._SocketSendHelper(raw_data):
+                    return
 
-    def _RecvWorker(self):
-        ss = io.BytesIO()
+    def __RecvWorker(self):
+        ss: io.BytesIO = io.BytesIO()
+
+        msg_filter: MessagePatcher.MessageFilter = MessagePatcher.MessageFilter()
+        msg_patcher: MessagePatcher.MessagePatcher = MessagePatcher.MessagePatcher()
 
         while True:
-            # check exit requirement
-            self._mStatusMutex.acquire()
-            cache_status = self._mStatus
-            self._mStatusMutex.release()
-            if cache_status == ModuleStatus.Stopping:
-                self._mOutput.Print("[BmmoClient] Recver detected stop status.")
-                break
-            if cache_status != ModuleStatus.Running:
-                time.sleep(0.01)
+            if not self.__mStateMachine.IsInState(CppHelper.State.Running):
+                time.sleep(CppHelper.SPIN_INTERVAL)
                 continue
-
+            
             # read header
-            (ec, header) = self._SocketRecvHelper(8)
+            (ec, header) = self._SocketRecvHelper(self.__sFmtHeader.size + self.__sFmtHeaderData.size)
             if not ec:
-                self._mOutput.Print("[BmmoClient] Error when receving msg header.")
-                self.Stop()
-                break
-
-            (raw_data_len, raw_is_reliable) = struct.unpack("II", header)
-            is_reliable = raw_is_reliable != 0
-
+                return
+            (raw_data_len, is_command) = self.__sFmtHeader.unpack(header[:self.__sFmtHeader.size])
+            (is_reliable, ) = self.__sFmtHeaderData.unpack(header[self.__sFmtHeader.size:])
+            
             # read body and write into clean ss
-            (ec, body) = self._SocketRecvHelper(raw_data_len)
+            (ec, body) = self.__SocketRecvHelper(raw_data_len)
             if not ec:
-                self._mOutput.Print("[BmmoClient] Error when receving msg body.")
-                self.Stop()
-                break
-
-            ss.seek(io.SEEK_SET, 0)
+                return
+            ss.seek(0, io.SEEK_SET)
             ss.truncate(0)
             ss.write(body)
 
-            # deserialize msg
+            # patch msg, and filter it, then deserialize it
+            msg: BmmoProto.BpMessage = None
             try:
                 ss.seek(io.SEEK_SET, 0)
-                msg = BmmoProto._UniformDeserialize(ss)
+                msg_patcher.PatchRecv(ss)
+                ss.seek(io.SEEK_SET, 0)
+                msg = msg_filter.UniversalDeserialize(ss)
             except Exception as e:
-                self._mOutput.Print("[BmmoClient] Error when deserializing msg.\nReason: {}\nError message payload: {}".format(e, ss.getvalue()))
+                self.__mOutput.Print(f"[BmmoClient] Error when deserializing msg.\n\tReason: {e}\n\tMessage payload: {ss.getvalue()}")
                 traceback.print_exc()
                 continue
+
+            # msg fail to parse or blocked by filter
             if msg is None:
-                self._mOutput.Print("[BmmoClient] Unknow msg opcode.")
                 continue
 
-            self._mRecvMsgMutex.acquire()
-            self._mRecvMsg.append(msg)
-            self._mRecvMsgMutex.release()
-
+            # add into msg deque
+            with self.__mRecvMsgMutex:
+                self.__mRecvMsg.append(msg)
