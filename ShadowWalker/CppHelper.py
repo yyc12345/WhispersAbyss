@@ -7,9 +7,15 @@ class StopToken:
         self.__mRequestStop = False
         self.__mMutex = threading.Lock()
     def stop_requested(self) -> bool:
+        """
+        Return True if this thread ordered to be stopped.
+        """
         with self.__mMutex:
             return self.__mRequestStop
     def request_stop(self):
+        """
+        Order this thread to stop.
+        """
         with self.__mMutex:
             self.__mRequestStop = True
 
@@ -19,8 +25,8 @@ class JThread:
     def __init__(self, func: typing.Callable[[StopToken], None]):
         self.__mStopToken = StopToken()
         self.__mTd = threading.Thread(target=func, args=(self.__mStopToken, ))
-    def run(self):
-        self.__mTd.run()
+    def start(self):
+        self.__mTd.start()
     def request_stop(self):
         self.__mStopToken.request_stop()
     def is_alive(self) -> bool:
@@ -58,8 +64,10 @@ class StateMachine:
             if (self.__mState in required_state) and (not self.__mHasRun[has_run_index]):
                 self.__mIsInTransition = True
                 self.__mHasRun[has_run_index] = True
+                self.__mMutex.release()
                 return True
             else:
+                self.__mMutex.release()
                 return False
     def __StopTrnsition(self, final_state: State):
         with self.__mMutex:

@@ -27,7 +27,7 @@ namespace WhispersAbyss {
 			port = mServerUrl.substr(urlpos + 1);
 
 			// solve ip
-			mOutput->Printf(OutputHelper::Component::GnsInstance, mIndex, "Resolving server address %s:%s", mIndex, address.c_str(), port.c_str());
+			mOutput->Printf(OutputHelper::Component::GnsInstance, mIndex, "Resolving server address %s:%s", address.c_str(), port.c_str());
 			asio::io_context ioContext;
 			asio::ip::udp::resolver udpResolver(ioContext);
 			asio::error_code ec;

@@ -68,7 +68,7 @@ namespace WhispersAbyss {
 		/// </summary>
 		bool HasRunOutOfTime() {
 			std::chrono::steady_clock::time_point timeend(std::chrono::steady_clock::now());
-			return (std::chrono::duration<double, std::micro>(timeend - mTimeStart).count() > mDuration);
+			return (std::chrono::duration<double, std::milli>(timeend - mTimeStart).count() > mDuration);
 		}
 	};
 

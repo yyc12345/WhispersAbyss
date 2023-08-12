@@ -1,12 +1,11 @@
-#import BmmoContext
-import OutputHelper
+import BmmoContext, OutputHelper, CppHelper
 import GetchHelper
 import time, sys, re, argparse
 
-mOutputHelper = OutputHelper.OutputHelper()
-mOutputHelper.Print("ShadowWalker")
-mOutputHelper.Print("==========")
-mOutputHelper.Print("")
+output_helper = OutputHelper.OutputHelper()
+output_helper.Print("ShadowWalker")
+output_helper.Print("==========")
+output_helper.Print("")
 
 # analyse parameter
 # define some arg regulator
@@ -52,32 +51,31 @@ parser.add_argument('-i', '--uuid', required=True, type=regulator_uuid, action='
 args = parser.parse_args()
 print(args)
 
-"""
 # start context
-mBmmoCtx = BmmoContext.BmmoContext(mOutputHelper, "127.0.0.1", argsPort, argsUsername, tuple(argsUuid))
+ctx = BmmoContext.BmmoContext(output_helper, BmmoContext.BmmoContextParam(
+    "127.0.0.1", args.local_port,
+    args.server_url,
+    args.username, args.uuid[:]
+))
+ctx.Start()
+# main loop
 while True:
     inc = GetchHelper.getch()
 
     if inc == b'q':
-        mBmmoCtx.SetCommand(BmmoContext.ContextCommandType.ExitCmd, None)
         break
     elif inc == b'p':
-        mBmmoCtx.SetCommand(BmmoContext.ContextCommandType.ProfileCmd, None)
+        ctx.Profile()
     elif inc == b'\t':
-        mOutputHelper.StartInput()
+        output_helper.StartInput()
         msg_content = input("> ")
-        mOutputHelper.StopInput()
-
-        mBmmoCtx.SetCommand(BmmoContext.ContextCommandType.ChatCmd, (msg_content, ))
+        output_helper.StopInput()
+        ctx.Chat(msg_content)
     else:
         if inc != b'h':
-            mOutputHelper.Print("Unknow command!")
-        mOutputHelper.Print("Command help:\nq: quit, p: show profile, tab: send message, h: show help.")
+            output_helper.Print("Unknow command!")
+        output_helper.Print("Command help:\n\tq: quit, p: show profile, tab: send message, h: show help.")
 
 # wait exit
-while True:
-    if mBmmoCtx.IsDead():
-        break
-    time.sleep(0.01)
-"""
-
+ctx.Stop()
+ctx.GetStateMachine().SpinUntil(CppHelper.State.Stopped)

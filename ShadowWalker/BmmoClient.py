@@ -3,14 +3,21 @@ import OutputHelper
 import MessagePatcher, CppHelper
 import threading, io, socket, time, struct, traceback, collections
 
+class BmmoClientParam:
+    mLocalHost: str
+    mLocalPort: int
+    mRemoteUrl: str
+    def __init__(self, local_host: str, local_port: int, remote_url: str):
+        self.mLocalHost = local_host
+        self.mLocalPort = local_port
+        self.mRemoteUrl = remote_url
+
 class BmmoClient:
     __mStateMachine: CppHelper.StateMachine
     __mOutput: OutputHelper.OutputHelper
     __mConn: socket.socket
 
-    __mConnHost: str
-    __mConnPort: int
-    __mConnRemoteUrl: str
+    __mConnParam: BmmoClientParam
 
     __mRecvMsgMutex: threading.Lock
     __mSendMsgMutex: threading.Lock
@@ -19,14 +26,12 @@ class BmmoClient:
     __mTdSend: CppHelper.JThread
     __mTdRecv: CppHelper.JThread
 
-    def __init__(self, output: OutputHelper.OutputHelper, local_host: str, local_port: int, remote_url: str):
+    def __init__(self, output: OutputHelper.OutputHelper, client_param: BmmoClientParam):
         self.__mStateMachine = CppHelper.StateMachine()
         self.__mOutput = output
         self.__mConn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        self.__mConnHost = local_host
-        self.__mConnPort = local_port
-        self.__mConnRemoteUrl = remote_url
+        self.__mConnParam = client_param
 
         self.__mRecvMsgMutex = threading.Lock()
         self.__mSendMsgMutex = threading.Lock()
@@ -41,22 +46,24 @@ class BmmoClient:
 
         self.__mOutput.Print("[BmmoClient] Created.")
 
+    # ============= Export Interface =============
     def __StartWorker(self) -> bool:
         try:
             # start socket
-            self.__mConn.connect((self.__mConnHost, self.__mConnPort))
+            self.__mConn.connect((self.__mConnParam.mLocalHost, self.__mConnParam.mLocalPort))
         except Exception as e:
             # order stop
             self.__mOutput.Print(f"[BmmoClient] Fail to start.\n\tReason: {e}")
             self.__mConn.close()
             return False
-        else:
-            # start send recv threads
-            self.__mTdSender = CppHelper.JThread(self.__SendWorker)
-            self.__mTdSender.start()
-            self.__mTdRecver = CppHelper.JThread(self.__RecvWorker)
-            self.__mTdRecver.start()
-            self.__mOutput.Print("[BmmoClient] Started.")
+
+        # start send recv threads
+        self.__mTdSender = CppHelper.JThread(self.__SendWorker)
+        self.__mTdSender.start()
+        self.__mTdRecver = CppHelper.JThread(self.__RecvWorker)
+        self.__mTdRecver.start()
+        self.__mOutput.Print("[BmmoClient] Started.")
+
         return True
     def Start(self):
         self.__mStateMachine.InitTransition(self.__StartWorker)
@@ -64,7 +71,7 @@ class BmmoClient:
     def __StopWorker(self):
         # stop socket
         self.__mOutput.Print("[BmmoClient] Closing connection...")
-        self.__mConn.close();
+        self.__mConn.close()
         # stop thread
         self.__mOutput.Print("[BmmoClient] Stopping threads...")
         if self.__mTdSend is not None and self.__mTdSend.is_alive():
@@ -94,6 +101,7 @@ class BmmoClient:
                 ls.extend(self.__mRecvMsg)
                 self.__mRecvMsg.clear()
 
+    # ============= Send / Recv Helper =============
     def __SocketSendHelper(self, msg: bytes) -> bool:
         msglen = len(msg)
         totalsent = 0
@@ -124,17 +132,18 @@ class BmmoClient:
             return (False, b'')
         return (True, chunks)
     
+    # ============= Send / Recv IMPL =============
     __sFmtHeader: struct.Struct = struct.Struct("=IB")
     __sFmtHeaderData: struct.Struct = struct.Struct("=B")
     __sFmtHeaderCmd: struct.Struct = struct.Struct("=I")
-    def __SendWorker(self):
+    def __SendWorker(self, stop_token: CppHelper.StopToken):
         ss: io.BytesIO = io.BytesIO()
         has_sent_url: bool = False
         send_messages: collections.deque[BmmoProto.BpMessage] = collections.deque()
 
         msg_patcher: MessagePatcher.MessagePatcher = MessagePatcher.MessagePatcher()
 
-        while True:
+        while not stop_token.stop_requested():
             if not self.__mStateMachine.IsInState(CppHelper.State.Running):
                 time.sleep(CppHelper.SPIN_INTERVAL)
                 continue
@@ -142,15 +151,15 @@ class BmmoClient:
             # if we still don't send url, send it first
             if not has_sent_url:
                 # get essential data
-                raw_data = self.__mConnRemoteUrl.encode('utf-8', errors='ignore')
+                raw_data = self.__mConnParam.mRemoteUrl.encode('utf-8', errors='ignore')
                 raw_data_len = len(raw_data)
 
                 # send header
-                if not self.__SocketSendHelper(self.__sFmtHeader.pack(raw_data_len + 1 + 4, 1) + self.__sFmtHeaderCmd.pack(raw_data_len)):
+                if not self.__SocketSendHelper(BmmoClient.__sFmtHeader.pack(raw_data_len + 1 + 4, 1) + BmmoClient.__sFmtHeaderCmd.pack(raw_data_len)):
                     # `+ 1 + 4` for 2 extra fields. `1` mean this msg is command msg
                     return
                 # send body
-                if not self._SocketSendHelper(raw_data):
+                if not self.__SocketSendHelper(raw_data):
                     return
                 
                 # mark has sent
@@ -184,30 +193,33 @@ class BmmoClient:
                 is_reliable: int = 1 if msg.IsReliable() else 0
 
                 # send header
-                if not self.__SocketSendHelper(self.__sFmtHeader.pack(raw_data_len + 1 + 1, 0) + self.__sFmtHeaderData.pack(is_reliable)):
+                if not self.__SocketSendHelper(BmmoClient.__sFmtHeader.pack(raw_data_len + 1 + 1, 0) + BmmoClient.__sFmtHeaderData.pack(is_reliable)):
                     # `+ 1 + 1` for 2 extra fields. `0` mean this msg is not command msg
                     return
                 # send body
-                if not self._SocketSendHelper(raw_data):
+                if not self.__SocketSendHelper(raw_data):
                     return
+                
+            # clear cache
+            send_messages.clear()
 
-    def __RecvWorker(self):
+    def __RecvWorker(self, stop_token: CppHelper.StopToken):
         ss: io.BytesIO = io.BytesIO()
 
         msg_filter: MessagePatcher.MessageFilter = MessagePatcher.MessageFilter()
         msg_patcher: MessagePatcher.MessagePatcher = MessagePatcher.MessagePatcher()
 
-        while True:
+        while not stop_token.stop_requested():
             if not self.__mStateMachine.IsInState(CppHelper.State.Running):
                 time.sleep(CppHelper.SPIN_INTERVAL)
                 continue
             
             # read header
-            (ec, header) = self._SocketRecvHelper(self.__sFmtHeader.size + self.__sFmtHeaderData.size)
+            (ec, header) = self.__SocketRecvHelper(BmmoClient.__sFmtHeader.size + BmmoClient.__sFmtHeaderData.size)
             if not ec:
                 return
-            (raw_data_len, is_command) = self.__sFmtHeader.unpack(header[:self.__sFmtHeader.size])
-            (is_reliable, ) = self.__sFmtHeaderData.unpack(header[self.__sFmtHeader.size:])
+            (raw_data_len, is_command) = BmmoClient.__sFmtHeader.unpack(header[:BmmoClient.__sFmtHeader.size])
+            (is_reliable, ) = BmmoClient.__sFmtHeaderData.unpack(header[BmmoClient.__sFmtHeader.size:])
             
             # read body and write into clean ss
             (ec, body) = self.__SocketRecvHelper(raw_data_len)
@@ -220,9 +232,9 @@ class BmmoClient:
             # patch msg, and filter it, then deserialize it
             msg: BmmoProto.BpMessage = None
             try:
-                ss.seek(io.SEEK_SET, 0)
+                ss.seek(0, io.SEEK_SET)
                 msg_patcher.PatchRecv(ss)
-                ss.seek(io.SEEK_SET, 0)
+                ss.seek(0, io.SEEK_SET)
                 msg = msg_filter.UniversalDeserialize(ss)
             except Exception as e:
                 self.__mOutput.Print(f"[BmmoClient] Error when deserializing msg.\n\tReason: {e}\n\tMessage payload: {ss.getvalue()}")

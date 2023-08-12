@@ -38,6 +38,9 @@ namespace WhispersAbyss {
 							this->InternalStop();
 							return;
 						}
+					} else {
+						// we got it, go to next
+						break;
 					}
 				}
 			}
@@ -130,14 +133,13 @@ namespace WhispersAbyss {
 
 		while (!st.stop_requested()) {
 			// if it can not work, wait
-			if (mStatusReporter.IsInState(StateMachine::Running)) {
+			if (!mStatusReporter.IsInState(StateMachine::Running)) {
 				std::this_thread::sleep_for(SPIN_INTERVAL);
 				continue;
 			}
 
 			// start working
 			allcount = 0u;
-
 
 			// check 2 instance status
 			if (mGnsInstance->mStatusReporter.IsInState(StateMachine::Stopped) ||

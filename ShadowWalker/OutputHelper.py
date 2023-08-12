@@ -53,7 +53,7 @@ class OutputHelper:
             self._mMsgList.append(strl)
             self._mMsgListCount += 1
         else:
-            print(strl);
+            print(strl)
         self._mMsgMutex.release()
 
     def StartInput(self):

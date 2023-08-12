@@ -134,6 +134,7 @@ namespace WhispersAbyss {
 					mIndexDistributor.Get()
 				));
 			}
+			new_incoming.clear();
 
 			{
 				std::lock_guard locker(mInstancesMutex);
