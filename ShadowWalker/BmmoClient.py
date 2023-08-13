@@ -185,10 +185,12 @@ class BmmoClient:
                     continue
 
                 # patch serialized msg
+                ss.seek(0, io.SEEK_SET)
                 msg_patcher.PatchSend(ss)
 
                 # get essential data
                 raw_data = ss.getvalue()
+                print('send: ' + raw_data.__repr__())
                 raw_data_len = len(raw_data)
                 is_reliable: int = 1 if msg.IsReliable() else 0
 
@@ -216,18 +218,20 @@ class BmmoClient:
             
             # read header
             (ec, header) = self.__SocketRecvHelper(BmmoClient.__sFmtHeader.size + BmmoClient.__sFmtHeaderData.size)
+            print('header: ' + header.__repr__())
             if not ec:
                 return
             (raw_data_len, is_command) = BmmoClient.__sFmtHeader.unpack(header[:BmmoClient.__sFmtHeader.size])
             (is_reliable, ) = BmmoClient.__sFmtHeaderData.unpack(header[BmmoClient.__sFmtHeader.size:])
             
             # read body and write into clean ss
-            (ec, body) = self.__SocketRecvHelper(raw_data_len)
+            (ec, body) = self.__SocketRecvHelper(raw_data_len - 1 - 1)   # `- 1 - 1` for 2 extra fields.
             if not ec:
                 return
             ss.seek(0, io.SEEK_SET)
             ss.truncate(0)
             ss.write(body)
+            print('recv: ' + body.__repr__())
 
             # patch msg, and filter it, then deserialize it
             msg: BmmoProto.BpMessage = None

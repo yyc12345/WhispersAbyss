@@ -60,7 +60,7 @@ namespace WhispersAbyss {
 	}
 
 	BridgeInstance::~BridgeInstance() {
-		Stop();
+		if (!mStatusReporter.IsInState(StateMachine::Stopped)) Stop();
 		mStatusReporter.SpinUntil(StateMachine::Stopped);
 
 		mOutput->Printf(OutputHelper::Component::BridgeInstance, mIndex, "Instance disposed.");

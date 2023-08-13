@@ -58,7 +58,7 @@ namespace WhispersAbyss {
 		mOutput->Printf(OutputHelper::Component::BridgeFactory, NO_INDEX, "Factory created.");
 	}
 	BridgeFactory::~BridgeFactory() {
-		Stop();
+		if (!mStatusReporter.IsInState(StateMachine::Stopped)) Stop();
 		mStatusReporter.SpinUntil(StateMachine::Stopped);
 
 		mOutput->Printf(OutputHelper::Component::BridgeFactory, NO_INDEX, "Factory disposed.");

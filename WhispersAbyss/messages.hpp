@@ -55,7 +55,7 @@ namespace WhispersAbyss {
 
 		const void* GetCommonData() const { return mBuf; }
 		uint32_t GetCommonDataLen() const { return mBufLen; }
-		bool GetTcpIsReliable() const { return mIsReliable; }
+		uint8_t GetTcpIsReliable() const { return mIsReliable ? 1u : 0u; }
 
 		void SetGnsData(const void* ss, int send_flag, int len);
 		void SetTcpData(const void* ss, bool is_reliable, uint32_t len);

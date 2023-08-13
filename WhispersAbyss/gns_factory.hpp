@@ -12,7 +12,7 @@
 
 namespace WhispersAbyss {
 
-	using GnsUserData_t = int64;
+	// using GnsUserData_t = int64;
 
 	class GnsFactory;
 	class GnsInstance;
@@ -27,9 +27,8 @@ namespace WhispersAbyss {
 
 		ISteamNetworkingSockets* GetGnsSockets();
 
-		GnsUserData_t GetClientToken(GnsInstance* instance);
-		void RegisterClient(GnsUserData_t token, GnsInstance* instance);
-		void UnregisterClient(GnsUserData_t token);
+		void RegisterClient(HSteamNetConnection token, GnsInstance* instance);
+		void UnregisterClient(HSteamNetConnection token);
 	private:
 		GnsFactory* mFactory;
 	};
@@ -45,7 +44,7 @@ namespace WhispersAbyss {
 		GnsFactoryOperator mSelfOperator;
 		ISteamNetworkingSockets* mGnsSockets;
 
-		std::map<GnsUserData_t, GnsInstanceOperator> mRouterMap;
+		std::map<HSteamNetConnection, GnsInstanceOperator> mRouterMap;
 		// Lock shared when use router. Lock unique when change router.
 		std::shared_mutex mRouterMutex;
 

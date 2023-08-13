@@ -37,7 +37,7 @@ namespace WhispersAbyss {
 		mOutput->Printf(OutputHelper::Component::TcpFactory, NO_INDEX, "Factory created.");
 	}
 	TcpFactory::~TcpFactory() {
-		Stop();
+		if (!mStatusReporter.IsInState(StateMachine::Stopped)) Stop();
 		mStatusReporter.SpinUntil(StateMachine::Stopped);
 
 		mOutput->Printf(OutputHelper::Component::TcpFactory, NO_INDEX, "Factory disposed.");

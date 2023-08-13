@@ -94,7 +94,7 @@ namespace WhispersAbyss {
 		mOutput->Printf(OutputHelper::Component::GnsFactory, NO_INDEX, "Factory created.");
 	}
 	GnsFactory::~GnsFactory() {
-		Stop();
+		if (!mStatusReporter.IsInState(StateMachine::Stopped)) Stop();
 		mStatusReporter.SpinUntil(StateMachine::Stopped);
 
 		mOutput->Printf(OutputHelper::Component::GnsFactory, NO_INDEX, "Factory disposed.");
@@ -137,9 +137,15 @@ namespace WhispersAbyss {
 	void GnsFactory::ProcConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* pInfo) {
 		std::shared_lock locker(mRouterMutex);
 
-		auto pair = mRouterMap.find(pInfo->m_info.m_nUserData);
+		auto pair = mRouterMap.find(pInfo->m_hConn);
 		if (pair != mRouterMap.end()) {
 			pair->second.HandleConnectionStatusChanged(pInfo);
+		} else {
+			// if no matched, boardcast to all connections to ensure all connection recv it.
+			// this is a final fallback mechanisim
+			for (auto& [conn, clt] : mRouterMap) {
+				clt.HandleConnectionStatusChanged(pInfo);
+			}
 		}
 	}
 
@@ -156,16 +162,12 @@ namespace WhispersAbyss {
 		return mFactory->mGnsSockets;
 	}
 
-	GnsUserData_t GnsFactoryOperator::GetClientToken(GnsInstance* instance) {
-		return reinterpret_cast<intptr_t>(instance);
-	}
-
-	void GnsFactoryOperator::RegisterClient(GnsUserData_t token, GnsInstance* instance) {
+	void GnsFactoryOperator::RegisterClient(HSteamNetConnection token, GnsInstance* instance) {
 		std::unique_lock locker(mFactory->mRouterMutex);
 		mFactory->mRouterMap.emplace(token, GnsInstanceOperator(instance));
 	}
 
-	void GnsFactoryOperator::UnregisterClient(GnsUserData_t token) {
+	void GnsFactoryOperator::UnregisterClient(HSteamNetConnection token) {
 		std::unique_lock locker(mFactory->mRouterMutex);
 		mFactory->mRouterMap.erase(token);
 	}

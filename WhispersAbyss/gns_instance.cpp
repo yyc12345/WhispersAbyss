@@ -73,7 +73,7 @@ namespace WhispersAbyss {
 		mOutput->Printf(OutputHelper::Component::GnsInstance, mIndex, "Instance created.");
 	}
 	GnsInstance::~GnsInstance() {
-		Stop();
+		if (!mStatusReporter.IsInState(StateMachine::Stopped)) Stop();
 		mStatusReporter.SpinUntil(StateMachine::Stopped);
 
 		mOutput->Printf(OutputHelper::Component::GnsInstance, mIndex, "Instance disposed.");
@@ -170,7 +170,7 @@ namespace WhispersAbyss {
 			size_t msg_list_size;
 			{
 				std::lock_guard locker(mRecvMsgMutex);
-				CommonOpers::MoveDeque(mRecvMsg, incoming_message);
+				CommonOpers::MoveDeque(incoming_message, mRecvMsg);
 				msg_list_size = mRecvMsg.size();
 			}
 			CheckSize(msg_list_size, true);
@@ -185,9 +185,11 @@ namespace WhispersAbyss {
 	}
 
 	void GnsInstanceOperator::HandleConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* pInfo) {
-		auto state = pInfo->m_info.m_eState;
+		// check whether this msg belong to me
+		// because main handler may throw some callback not belong to this instance as a fallback mechanisim.
+		if (pInfo->m_hConn != mInstance->mGnsConnection) return;
 
-		switch (state) {
+		switch (pInfo->m_info.m_eState) {
 			case k_ESteamNetworkingConnectionState_Connecting:
 			{
 				mInstance->mOutput->Printf(OutputHelper::Component::GnsInstance, mInstance->mIndex, "Connecting...");
@@ -251,24 +253,18 @@ namespace WhispersAbyss {
 			return false;
 		}
 
-		// set user custom data
-		// IMPORTANT. related to callback dispatch
-		auto token = mFactoryOperator->GetClientToken(this);
+		// set empty opt
 		SteamNetworkingConfigValue_t opt{};
-		opt.SetInt64(
-			k_ESteamNetworkingConfig_ConnectionUserData,
-			token
-		);
-		// register client IMMEDIATELY
-		mFactoryOperator->RegisterClient(token, this);
 
 		// connect
-		mGnsConnection = mFactoryOperator->GetGnsSockets()->ConnectByIPAddress(server_address, 1, &opt);
+		mGnsConnection = mFactoryOperator->GetGnsSockets()->ConnectByIPAddress(server_address, 0, &opt);
 		if (mGnsConnection == k_HSteamNetConnection_Invalid) {
-			// failed. unregister and return
-			mFactoryOperator->UnregisterClient(token);
+			// failed. return.
 			return false;
 		}
+
+		// register client
+		mFactoryOperator->RegisterClient(mGnsConnection, this);
 
 		return true;
 	}
@@ -308,7 +304,7 @@ namespace WhispersAbyss {
 	void GnsInstance::DisconnectGns() {
 		if (mGnsConnection != k_HSteamNetConnection_Invalid) {
 			mFactoryOperator->GetGnsSockets()->CloseConnection(mGnsConnection, 0, "Goodbye from WhispersAbyss", false);
-			mFactoryOperator->UnregisterClient(mFactoryOperator->GetClientToken(this));
+			mFactoryOperator->UnregisterClient(mGnsConnection);
 			mGnsConnection = k_HSteamNetConnection_Invalid;
 
 		}

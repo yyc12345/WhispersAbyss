@@ -66,21 +66,19 @@ class MessagePatcher:
 
     def PatchRecv(self, ss: io.BytesIO):
         # patch opcode
-        ss.seek(io.SEEK_SET, 0)
+        ss.seek(0, io.SEEK_SET)
         this_opcode = self.__That2ThisOpCode[BmmoProto.PeekOpCode(ss)]
         BmmoProto.WriteOpCode(this_opcode, ss)
 
         # patch data
-        opcode = BmmoProto.PeekOpCode(ss)
-        func = self.__RecvProcMap.get(opcode, None)
+        func = self.__RecvProcMap.get(this_opcode, None)
         if func: func(self, ss)
 
     def PatchSend(self, ss: io.BytesIO):
         # patch opcode
-        ss.seek(io.SEEK_SET, 0)
-        this_opcode = self.__This2ThatOpCode[BmmoProto.PeekOpCode(ss)]
-        BmmoProto.WriteOpCode(this_opcode, ss)
-
+        ss.seek(0, io.SEEK_SET)
+        that_opcode = self.__This2ThatOpCode[BmmoProto.PeekOpCode(ss)]
+        BmmoProto.WriteOpCode(that_opcode, ss)
         # patch data
         # no
 

@@ -68,7 +68,7 @@ class BmmoUserManager:
             for profile in self.__mGnsid2Profile.values():
                 row = (
                     profile.mUsername,
-                    BmmoFmt.FormatUuid(profile.mUUID)
+                    BmmoFmt.FormatGnsUuid(profile.mGnsId)
                 )
                 table.append(row)
 

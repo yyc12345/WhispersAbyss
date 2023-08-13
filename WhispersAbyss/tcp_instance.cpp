@@ -31,7 +31,7 @@ namespace WhispersAbyss {
 
 	TcpInstance::~TcpInstance() {
 		// make sure stopped
-		Stop();
+		if (!mStatusReporter.IsInState(StateMachine::Stopped)) Stop();
 		mStatusReporter.SpinUntil(StateMachine::Stopped);
 
 		mOutput->Printf(OutputHelper::Component::TcpInstance, mIndex, "Instance disposed.");
@@ -130,7 +130,7 @@ namespace WhispersAbyss {
 				// mMsgSize, mFlagIsCommand, mIsReliable, mRaw
 				uint32_t msg_size = msg.GetCommonDataLen() + sizeof(uint8_t) + sizeof(uint8_t);
 				static uint8_t flag_data = 0u;
-				uint8_t is_reliable = msg.GetTcpIsReliable() ? 1u : 0u;
+				uint8_t is_reliable = msg.GetTcpIsReliable();
 
 				// write msg size + flag + is reliable
 				asio::write(mSocket, asio::buffer(&msg_size, sizeof(uint32_t)), ec);
@@ -159,6 +159,9 @@ namespace WhispersAbyss {
 					return;
 				}
 			}
+
+			// clear internal buffer
+			intermsg.clear();
 
 			// end of a loop of sender.
 		}
