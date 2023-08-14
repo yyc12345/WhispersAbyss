@@ -5,30 +5,30 @@ A simple protocol converter. It mainly served for the protocol convertion of [Sw
 
 This project consist of 2 parts. WhispersAbyss is the main converter written in C++, and ShadowWalker is a tiny BMMO client written in Python. ShadowWalker only implement some basic functions of BMMO protocol, such as login, logout and etc. It is used as a tester for WhispersAbyss and check whether WhispersAbyss can work normally.
 
-## Abandoned Project
-
-This project no longer update anymore. The protocol of BMMO is volatile and can not be concluded as a stable principle. Have a good day, every Ballance players. I am not play Ballance technology anymore.
-
 ## Usage
 
 ### WhispersAbyss
 
-Syntax: `WhispersAbyss [accept_port] [server_address]`
+Syntax: `WhispersAbyss [accept_port]`
 
-Accept port is the port which will accept TCP connections, for example, `6172`.  
-Server address is the combination of host and port, for example, `bmmmo.server.net:26675`.  
+`accept_port` is the port which will accept TCP connections, for example, `6172`.
+
 WhispersAbyss is a console application. You can see some real-time output after starting this application.  
-You can press `h` on keyboard directly to see more useful options.  
+You can press `p` on keyboard directly to show all profiles of running connections.  
 Press `q` to exit application.
 
 ### ShadowWalker
 
-Syntax: `python3 ShadowWalker.py [port] [username] [uuid]`
+Syntax: `python3 ShadowWalker.py -p [local_port] -u [remote_url] -n [username] -i [uuid]`
 
-Port is pointed to the acceptor port of WhispersAbyss.  
-Username is in-game name.  
-Uuid is an unique identifier for each user. Its ususally have the format like `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`.  
-Just like WhispersAbyss, after starting client, you can press `h` for help and press `q` to exit program.
+`local_port` is pointed to the acceptor port of WhispersAbyss.  
+`remote_url` is the combination of host and port which you want to connect, for example, `bmmmo.server.net:26675`.  
+`username` is in-game name.  
+`uuid` is an unique identifier for each user. Its ususally have the format like `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`.
+
+Press `q` to exit program.  
+Press `p` for show user list.  
+Press Tab to open a chat prompt and you can input your chat content.
 
 ## Compile
 
