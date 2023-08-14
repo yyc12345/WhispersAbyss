@@ -178,6 +178,11 @@ class BmmoContext:
                 time.sleep(CppHelper.SPIN_INTERVAL)
                 continue
 
+            # if it can not work, stop
+            if self.__mClient.GetStateMachine().IsInState(CppHelper.State.Stopped):
+                self.Stop()
+                return
+
             # process message
             self.__mClient.Recv(recv_msg)
             for msg in recv_msg:
@@ -205,7 +210,7 @@ class BmmoContext:
                 # chat
                 elif opcode == BmmoProto.OpCode.chat_msg:
                     lintmsg: BmmoProto.chat_msg = msg
-                    self.__mOutput.Print(f"[Chat] <{lintmsg.player_id}, {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.player_id)}> {lintmsg.chat_content}", "green")
+                    self.__mOutput.Print(f"[Chat] <{BmmoFmt.FormatGnsUuid(lintmsg.player_id)}, {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.player_id)}> {lintmsg.chat_content}", "green")
 
                 # other players login logout
                 elif opcode == BmmoProto.OpCode.player_connected_v2_msg:

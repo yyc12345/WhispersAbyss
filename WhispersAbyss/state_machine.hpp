@@ -8,6 +8,30 @@
 namespace WhispersAbyss::StateMachine {
 
 	/*
+	Vulnerable bug:
+	Using StateMachine may easily cause use after free issue.
+	Usually happend in transition allocation, although I have invent a ref counter for state machine.
+	The suppress solution is do not calling like this:
+	```
+	Stop();
+	mStatusReporter.SpinUntil(StateMachine::Stopped);
+	```
+	Use this calling style instread:
+	```
+	if (!mStatusReporter.IsInState(StateMachine::Stopped)) Stop();
+	mStatusReporter.SpinUntil(StateMachine::Stopped);
+	```
+
+	This change can suppress this problem but can't solve it.
+	But I really don't want to slove this issue and 
+	actually I do not have time to solve this issue.
+
+	NOTE:
+	This style code used in every Stop() of Instance and Factory.
+	Also used in Factory Disposal lambda.
+	*/
+
+	/*
 	There are 3 possible state for StateMachineCore.
 	Ready, Running, Stopped.
 

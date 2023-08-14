@@ -45,7 +45,7 @@ namespace WhispersAbyss {
 
 			// start disposal
 			this->mDisposal.Start([this](BridgeInstance* instance) -> void {
-				instance->Stop();
+				if (!instance->mStatusReporter.IsInState(StateMachine::Stopped)) instance->Stop();
 				instance->mStatusReporter.SpinUntil(StateMachine::Stopped);
 				this->mIndexDistributor.Return(instance->mIndex);
 				delete instance;
@@ -105,10 +105,56 @@ namespace WhispersAbyss {
 			}
 		}
 
-		// todo: show profiles
-		//for (auto& profile : profiles) {
-		//	mOutput->RawPrintf("Tcp R/W: %" PRIu64 "/%" PRIu64 "");
-		//}
+		// show profiles
+		// reserve string first
+		// (profiles.size() * 5 + 1) is the total used lines. every profile will use 5 lines in average.
+		// (3 * 20 + 1) is the character used by one line. every line have 3 column and each use 20 chars in average.
+		// 128 is padding. just to make sure no extra allocation.
+		std::string buf;
+		buf.reserve((profiles.size() * 5 + 1) * (3 * 20 + 1) + 128);
+		constexpr const char cInTrans[] = "(Trans)";
+		constexpr const char cNotInTrans[] = "";
+		for (auto& profile : profiles) {
+			buf.append("+--------------+--------------+--------------+\n");
+			CommonOpers::AppendStrF(buf, "|%12" PRIu64 "->|  Tcp to Gns  |->%-12" PRIu64 "|\n",
+				profile.mRecvTcp, profile.mSendGns);
+			
+			if (profile.mTcpStatus.mIsExisted) {
+				CommonOpers::AppendStrF(buf, "|Tcp#%-10" PRIu64, profile.mTcpStatus.mIndex);
+			} else buf.append("|NO TCP       ");
+			if (profile.mSelfStatus.mIsExisted) {
+				CommonOpers::AppendStrF(buf, "|Bridge#%-7" PRIu64, profile.mSelfStatus.mIndex);
+			} else buf.append("|NO BRIDGE    ");
+			if (profile.mGnsStatus.mIsExisted) {
+				CommonOpers::AppendStrF(buf, "|Gns#%-10" PRIu64, profile.mGnsStatus.mIndex);
+			} else buf.append("|NO GNS       ");
+			buf.append("|\n");
+
+			if (profile.mTcpStatus.mIsExisted) {
+				CommonOpers::AppendStrF(buf, "|%7s%7s",
+					CommonOpers::State2String(profile.mTcpStatus.mState), (profile.mTcpStatus.mIsInTransition ? cInTrans : cNotInTrans));
+			} else buf.append("|             ");
+			if (profile.mSelfStatus.mIsExisted) {
+				CommonOpers::AppendStrF(buf, "|%7s%7s",
+					CommonOpers::State2String(profile.mSelfStatus.mState), (profile.mSelfStatus.mIsInTransition ? cInTrans : cNotInTrans));
+			} else buf.append("|             ");
+			if (profile.mGnsStatus.mIsExisted) {
+				CommonOpers::AppendStrF(buf, "|%7s%7s",
+					CommonOpers::State2String(profile.mGnsStatus.mState), (profile.mGnsStatus.mIsInTransition ? cInTrans : cNotInTrans));
+			} else buf.append("|             ");
+			buf.append("|\n");
+
+			CommonOpers::AppendStrF(buf, "|%12" PRIu64 "<-|  Gns to Tcp  |<-%-12" PRIu64 "|\n",
+				profile.mRecvTcp, profile.mSendGns);
+		}
+		if (!profiles.empty()) {
+			buf.append("+--------------+--------------+--------------+\n");
+		} else {
+			buf = "No available profile.";
+		}
+
+		// print profile
+		mOutput->RawPrintf(buf.c_str());
 	}
 
 	void BridgeFactory::CtxWorker(std::stop_token st) {

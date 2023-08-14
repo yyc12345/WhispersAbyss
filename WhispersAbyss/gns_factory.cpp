@@ -71,7 +71,7 @@ namespace WhispersAbyss {
 
 			// start disposal
 			this->mDisposal.Start([this](GnsInstance* instance) -> void {
-				instance->Stop();
+				if (!instance->mStatusReporter.IsInState(StateMachine::Stopped)) instance->Stop();
 				instance->mStatusReporter.SpinUntil(StateMachine::Stopped);
 				this->mIndexDistributor.Return(instance->mIndex);
 				delete instance;
@@ -140,12 +140,6 @@ namespace WhispersAbyss {
 		auto pair = mRouterMap.find(pInfo->m_hConn);
 		if (pair != mRouterMap.end()) {
 			pair->second.HandleConnectionStatusChanged(pInfo);
-		} else {
-			// if no matched, boardcast to all connections to ensure all connection recv it.
-			// this is a final fallback mechanisim
-			for (auto& [conn, clt] : mRouterMap) {
-				clt.HandleConnectionStatusChanged(pInfo);
-			}
 		}
 	}
 

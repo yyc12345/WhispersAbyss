@@ -49,7 +49,6 @@ parser.add_argument('-i', '--uuid', required=True, type=regulator_uuid, action='
 
 # parse arg
 args = parser.parse_args()
-print(args)
 
 # start context
 ctx = BmmoContext.BmmoContext(output_helper, BmmoContext.BmmoContextParam(

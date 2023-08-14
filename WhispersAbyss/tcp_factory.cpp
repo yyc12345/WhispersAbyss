@@ -24,7 +24,7 @@ namespace WhispersAbyss {
 
 			// preparing disposal
 			this->mDisposal.Start([this](TcpInstance* instance) -> void {
-				instance->Stop();
+				if (!instance->mStatusReporter.IsInState(StateMachine::Stopped)) instance->Stop();
 				instance->mStatusReporter.SpinUntil(StateMachine::Stopped);
 				this->mIndexDistributor.Return(instance->mIndex);
 				delete instance;

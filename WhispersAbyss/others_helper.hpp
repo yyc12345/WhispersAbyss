@@ -50,6 +50,9 @@ namespace WhispersAbyss {
 			_from.erase(_from.begin(), _from.end());
 		}
 
+		const char* State2String(StateMachine::State_t state);
+		void AppendStrF(std::string& strl, const char* fmt, ...);
+
 	}
 
 	class CountDownTimer {
@@ -206,6 +209,7 @@ namespace WhispersAbyss {
 		void RawPrintf(const char* fmt, ...);
 	private:
 		int64_t g_logTimeZero;
+		std::mutex mMutex;
 
 		void PrintTimestamp();
 		void PrintComponent(Component comp, IndexDistributor::Index_t index);

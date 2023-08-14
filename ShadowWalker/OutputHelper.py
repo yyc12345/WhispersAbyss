@@ -1,18 +1,22 @@
 import threading
 import termcolor
-import sys, os
+import sys, os, collections
 
 class OutputHelper:
+    __cMAX_MSG_SIZE: int = 100
+    __mMutex: threading.Lock
+    __mIsInputting: bool
+    __mMsgDeque: collections.deque[str]
+
     _mMAX_MSG_SIZE = 100
 
     def __init__(self):
         # enable terminal output first
         self.__EnableTerminalColor()
         # setup msg list
-        self._mMsgMutex = threading.Lock()
-        self._mIsInputing = False
-        self._mMsgList = []
-        self._mMsgListCount = 0
+        self.__mMutex = threading.Lock()
+        self.__mIsInputting = False
+        self.__mMsgDeque = collections.deque()
 
     def __EnableTerminalColor(self):
         if sys.platform == "win32" or sys.platform == "cygwin":
@@ -45,29 +49,22 @@ class OutputHelper:
             strl = termcolor.colored(strl, col, attrs=["bold"])
         
         # msg list oper
-        self._mMsgMutex.acquire()
-        if (self._mIsInputing):
-            if (self._mMsgListCount >= OutputHelper._mMAX_MSG_SIZE):
-                self._mMsgList.pop(0)
-                self._mMsgListCount -= 1
-            self._mMsgList.append(strl)
-            self._mMsgListCount += 1
-        else:
-            print(strl)
-        self._mMsgMutex.release()
+        with self.__mMutex:
+            if self.__mIsInputting:
+                if len(self.__mMsgDeque) >= OutputHelper.__cMAX_MSG_SIZE:
+                    self.__mMsgDeque.popleft()
+                self.__mMsgDeque.append(strl)
+            else:
+                print(strl)
 
     def StartInput(self):
-        self._mMsgMutex.acquire()
-        self._mIsInputing = True
-        self._mMsgMutex.release()
+        with self.__mMutex:
+            self.__mIsInputting = True
 
     def StopInput(self):
-        self._mMsgMutex.acquire()
-
-        self._mIsInputing = False
-        for strl in self._mMsgList:
-            print(strl)
-        self._mMsgList.clear()
-        self._mMsgListCount = 0
-
-        self._mMsgMutex.release()
+        with self.__mMutex:
+            self.__mIsInputting = False
+        
+            for strl in self.__mMsgDeque:
+                print(strl)
+            self.__mMsgDeque.clear()

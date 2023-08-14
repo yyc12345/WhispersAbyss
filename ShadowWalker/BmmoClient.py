@@ -190,7 +190,6 @@ class BmmoClient:
 
                 # get essential data
                 raw_data = ss.getvalue()
-                print('send: ' + raw_data.__repr__())
                 raw_data_len = len(raw_data)
                 is_reliable: int = 1 if msg.IsReliable() else 0
 
@@ -203,6 +202,9 @@ class BmmoClient:
                     return
                 
             # clear cache
+            # if no data, sleep a while
+            if len(send_messages) == 0:
+                time.sleep(CppHelper.SPIN_INTERVAL)
             send_messages.clear()
 
     def __RecvWorker(self, stop_token: CppHelper.StopToken):
@@ -218,7 +220,6 @@ class BmmoClient:
             
             # read header
             (ec, header) = self.__SocketRecvHelper(BmmoClient.__sFmtHeader.size + BmmoClient.__sFmtHeaderData.size)
-            print('header: ' + header.__repr__())
             if not ec:
                 return
             (raw_data_len, is_command) = BmmoClient.__sFmtHeader.unpack(header[:BmmoClient.__sFmtHeader.size])
@@ -231,7 +232,6 @@ class BmmoClient:
             ss.seek(0, io.SEEK_SET)
             ss.truncate(0)
             ss.write(body)
-            print('recv: ' + body.__repr__())
 
             # patch msg, and filter it, then deserialize it
             msg: BmmoProto.BpMessage = None

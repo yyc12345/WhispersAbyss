@@ -185,10 +185,6 @@ namespace WhispersAbyss {
 	}
 
 	void GnsInstanceOperator::HandleConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* pInfo) {
-		// check whether this msg belong to me
-		// because main handler may throw some callback not belong to this instance as a fallback mechanisim.
-		if (pInfo->m_hConn != mInstance->mGnsConnection) return;
-
 		switch (pInfo->m_info.m_eState) {
 			case k_ESteamNetworkingConnectionState_Connecting:
 			{
