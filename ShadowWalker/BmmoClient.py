@@ -7,10 +7,12 @@ class BmmoClientParam:
     mLocalHost: str
     mLocalPort: int
     mRemoteUrl: str
-    def __init__(self, local_host: str, local_port: int, remote_url: str):
+    mEnableDebug: bool
+    def __init__(self, local_host: str, local_port: int, remote_url: str, enable_debug: bool):
         self.mLocalHost = local_host
         self.mLocalPort = local_port
         self.mRemoteUrl = remote_url
+        self.mEnableDebug = enable_debug
 
 class BmmoClient:
     __mStateMachine: CppHelper.StateMachine
@@ -193,6 +195,10 @@ class BmmoClient:
                 raw_data_len = len(raw_data)
                 is_reliable: int = 1 if msg.IsReliable() else 0
 
+                # debug output
+                if (self.__mConnParam.mEnableDebug):
+                    print("Send: " + raw_data.__repr__())
+
                 # send header
                 if not self.__SocketSendHelper(BmmoClient.__sFmtHeader.pack(raw_data_len + 1 + 1, 0) + BmmoClient.__sFmtHeaderData.pack(is_reliable)):
                     # `+ 1 + 1` for 2 extra fields. `0` mean this msg is not command msg
@@ -222,6 +228,7 @@ class BmmoClient:
             (ec, header) = self.__SocketRecvHelper(BmmoClient.__sFmtHeader.size + BmmoClient.__sFmtHeaderData.size)
             if not ec:
                 return
+            # analyze header
             (raw_data_len, is_command) = BmmoClient.__sFmtHeader.unpack(header[:BmmoClient.__sFmtHeader.size])
             (is_reliable, ) = BmmoClient.__sFmtHeaderData.unpack(header[BmmoClient.__sFmtHeader.size:])
             
@@ -244,6 +251,11 @@ class BmmoClient:
                 self.__mOutput.Print(f"[BmmoClient] Error when deserializing msg.\n\tReason: {e}\n\tMessage payload: {ss.getvalue()}")
                 traceback.print_exc()
                 continue
+
+            # debug output
+            if (self.__mConnParam.mEnableDebug) and msg is not None:
+                print("Head: " + header.__repr__())
+                print("Recv: " + body.__repr__())
 
             # msg fail to parse or blocked by filter
             if msg is None:

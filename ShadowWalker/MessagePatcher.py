@@ -86,9 +86,27 @@ class MessageFilter:
     __AllowedOpCode: tuple[int] = (
         BmmoProto.OpCode.login_accepted_v3_msg.value,
         BmmoProto.OpCode.simple_action_msg.value,
-        BmmoProto.OpCode.chat_msg.value,
+
         BmmoProto.OpCode.player_connected_v2_msg.value,
         BmmoProto.OpCode.player_disconnected_msg.value,
+        BmmoProto.OpCode.player_kicked_msg.value,
+
+        BmmoProto.OpCode.chat_msg.value,
+        BmmoProto.OpCode.private_chat_msg.value,
+        BmmoProto.OpCode.important_notification_msg.value,
+        BmmoProto.OpCode.permanent_notification_msg.value,
+
+        BmmoProto.OpCode.owned_cheat_state_msg.value,
+        BmmoProto.OpCode.cheat_toggle_msg.value,
+        BmmoProto.OpCode.owned_cheat_toggle_msg.value,
+
+        BmmoProto.OpCode.map_names_msg.value,
+        BmmoProto.OpCode.current_map_msg.value,
+        BmmoProto.OpCode.current_sector_msg.value,
+
+        BmmoProto.OpCode.player_ready_msg.value,
+        BmmoProto.OpCode.countdown_msg.value,
+        BmmoProto.OpCode.did_not_finish_msg.value,
     )
 
     def UniversalDeserialize(self, ss: io.BytesIO) -> BmmoProto.BpMessage:

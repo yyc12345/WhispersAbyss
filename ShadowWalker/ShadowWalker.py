@@ -27,7 +27,7 @@ def regulator_server_url(strl: str) -> str:
     regulator_port(urlsp[1])
     return strl
 def regulator_username(strl: str) -> str:
-    if not re.match('^[_0-9a-zA-Z]+$', strl): raise argparse.ArgumentTypeError("Invalid username.")
+    if not re.match('^\*?[_0-9a-zA-Z]+$', strl): raise argparse.ArgumentTypeError("Invalid username.")
     return strl
 def regulator_uuid(strl: str) -> tuple[int]:
     if not re.match('^[0-9a-f]{8}\-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', strl):
@@ -42,6 +42,7 @@ def regulator_uuid(strl: str) -> tuple[int]:
 
 # setup parser
 parser = argparse.ArgumentParser(description='The Walker of BallanceMMO.')
+parser.add_argument('-d', '--debug', action='store_true', dest='enable_debug')
 parser.add_argument('-p', '--local-port', required=True, type=regulator_port, action='store', dest='local_port', metavar='6172')
 parser.add_argument('-u', '--server-url', required=True, type=regulator_server_url, action='store', dest='server_url', metavar='127.0.0.1:25565')
 parser.add_argument('-n', '--username', required=True, type=regulator_username, action='store', dest='username', metavar='ShadowPower')
@@ -54,7 +55,8 @@ args = parser.parse_args()
 ctx = BmmoContext.BmmoContext(output_helper, BmmoContext.BmmoContextParam(
     "127.0.0.1", args.local_port,
     args.server_url,
-    args.username, args.uuid[:]
+    args.username, args.uuid[:],
+    args.enable_debug
 ))
 ctx.Start()
 # main loop
