@@ -34,7 +34,7 @@ class BmmoFmt:
         return s
 
     @staticmethod
-    def FormatCheatState(state: bool) -> str: "ON" if state else "OFF"
+    def FormatCheatState(state: bool) -> str: return "ON" if state else "OFF"
 
     @staticmethod
     def FormatMd5(md5: tuple) -> str:
@@ -372,10 +372,10 @@ class BmmoContext:
                     self.__mOutput.Print(f"[Chat] <{BmmoFmt.FormatGnsUuid(lintmsg.player_id)}, {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.player_id)}> {lintmsg.chat_content}", "light_green")
                 elif opcode == BmmoProto.OpCode.private_chat_msg:
                     lintmsg: BmmoProto.private_chat_msg = msg
-                    self.__mOutput.Print(f"[Whisper] <{BmmoFmt.FormatGnsUuid(lintmsg.player_id)}, {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.player_id)}> {lintmsg.chat_content}", "light_green")
+                    self.__mOutput.Print(f"[Whisper] <{BmmoFmt.FormatGnsUuid(lintmsg.opposite_player_id)}, {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.opposite_player_id)}> {lintmsg.chat_content}", "light_green")
                 elif opcode == BmmoProto.OpCode.important_notification_msg:
                     lintmsg: BmmoProto.important_notification_msg = msg
-                    self.__mOutput.Print(f"[Announcement] <{BmmoFmt.FormatGnsUuid(lintmsg.player_id)}, {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.player_id)}> {lintmsg.chat_content}", "green")
+                    self.__mOutput.Print(f"[Announcement] <{BmmoFmt.FormatGnsUuid(lintmsg.opposite_player_id)}, {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.opposite_player_id)}> {lintmsg.chat_content}", "green")
                 elif opcode == BmmoProto.OpCode.permanent_notification_msg:
                     lintmsg: BmmoProto.permanent_notification_msg = msg
                     self.__mOutput.Print(f"[Bulletin] {lintmsg.title}: {lintmsg.text_content}", "green")
@@ -422,7 +422,7 @@ class BmmoContext:
                 elif opcode == BmmoProto.OpCode.countdown_msg:
                     lintmsg: BmmoProto.countdown_msg = msg
 
-                    words: str = f"[Game] <{self.__mUserManager.GetUsernameFromGnsUid(lintmsg.sender)}> {self.__mMapManager.GetDisplayName(BmmoMd5(lintmsg.for_map.md5))} - "
+                    words: str = f"[Game] <{BmmoFmt.FormatGnsUuid(lintmsg.sender)}, {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.sender)}> {self.__mMapManager.GetDisplayName(BmmoMd5(lintmsg.for_map.md5))} - "
                     cdt = lintmsg.cd_type
                     if cdt == BmmoProto.countdown_type.Go:
                         words += "Go!"
@@ -441,6 +441,18 @@ class BmmoContext:
                 elif opcode == BmmoProto.OpCode.did_not_finish_msg:
                     lintmsg: BmmoProto.did_not_finish_msg = msg
                     self.__mOutput.Print(f"{self.__mUserManager.GetUsernameFromGnsUid(lintmsg.player_id)} did not finish {self.__mMapManager.GetDisplayName(BmmoMd5(lintmsg.in_map.md5))} (aborted at sector {lintmsg.sector}).", "light_blue")
+                elif opcode == BmmoProto.OpCode.level_finish_v2_msg:
+                    lintmsg: BmmoProto.level_finish_v2_msg = msg
+                    # collect some data
+                    score: int = lintmsg.levelBonus + lintmsg.points + lintmsg.lives * lintmsg.lifeBonus;
+                    timetotal: int = int(lintmsg.timeElapsed)
+                    timemin: int = timetotal // 60
+                    timesec: int = timetotal % 60
+                    timehr: int = timemin // 60
+                    timemin = timemin % 60
+                    timems: int = int((lintmsg.timeElapsed - float(timetotal)) * 1000)
+                    self.__mOutput.Print(f"[Game] {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.player_id)} finished {self.__mMapManager.GetDisplayName(BmmoMd5(lintmsg.bmap.md5))} in {lintmsg.rank}st place (score: {score}; real time: {timehr:02d}:{timemin:02d}:{timesec:02d}.{timems:03d}).", "light_blue")
+
 
             # if this turn no msg, sleep a while
             if len(recv_msg) == 0:

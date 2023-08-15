@@ -145,7 +145,7 @@ namespace WhispersAbyss {
 			buf.append("|\n");
 
 			CommonOpers::AppendStrF(buf, "|%12" PRIu64 "<-|  Gns to Tcp  |<-%-12" PRIu64 "|\n",
-				profile.mRecvTcp, profile.mSendGns);
+				profile.mSendTcp, profile.mRecvGns);
 		}
 		if (!profiles.empty()) {
 			buf.append("+--------------+--------------+--------------+\n");

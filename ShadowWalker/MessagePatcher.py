@@ -107,6 +107,7 @@ class MessageFilter:
         BmmoProto.OpCode.player_ready_msg.value,
         BmmoProto.OpCode.countdown_msg.value,
         BmmoProto.OpCode.did_not_finish_msg.value,
+        BmmoProto.OpCode.level_finish_v2_msg.value,
     )
 
     def UniversalDeserialize(self, ss: io.BytesIO) -> BmmoProto.BpMessage:

@@ -75,7 +75,7 @@ while True:
     else:
         if inc != b'h':
             output_helper.Print("Unknow command!")
-        output_helper.Print("Command help:\n\tq: quit, p: show profile, tab: send message, h: show help.")
+        output_helper.Print("Command help:\n\tq: quit, p: show players, tab: chat, h: show help.")
 
 # wait exit
 ctx.Stop()
