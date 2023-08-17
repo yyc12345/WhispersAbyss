@@ -79,7 +79,7 @@ class BmmoMapManager:
     def GetDisplayName(self, md5: BmmoMd5) -> str:
         with self.__mMutex:
             name = self.__mMd5Map2Name.get(md5, None)
-            if name is None: name = "[Unknow]"
+            if name is None: name = "[Unknown]"
             return name
 
 class BmmoUserProfile:
@@ -132,7 +132,7 @@ class BmmoUserManager:
             if uid == 0: return "[Server]"
             else:
                 profile = self.__mGnsid2Profile.get(uid, None)
-                if profile is None: return "[Unknow]"
+                if profile is None: return "[Unknown]"
                 else: return profile.mUsername
     def GetUserSheet(self, mapmgr: BmmoMapManager) -> str:
         table = []

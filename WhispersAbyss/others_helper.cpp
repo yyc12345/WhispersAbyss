@@ -16,7 +16,7 @@ namespace WhispersAbyss {
 			case StateMachine::Ready: return "Ready";
 			case StateMachine::Running: return "Running";
 			case StateMachine::Stopped: return "Stopped";
-			default: return "Unknow";
+			default: return "Unknown";
 		}
 	}
 
