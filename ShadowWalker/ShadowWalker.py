@@ -27,7 +27,7 @@ def regulator_server_url(strl: str) -> str:
     regulator_port(urlsp[1])
     return strl
 def regulator_username(strl: str) -> str:
-    if not re.match('^\*?[_0-9a-zA-Z]+$', strl): raise argparse.ArgumentTypeError("Invalid username.")
+    if not re.match('^\*?[a-zA-Z0-9_+=.~()\-]+$', strl): raise argparse.ArgumentTypeError("Invalid username.")
     return strl
 def regulator_uuid(strl: str) -> tuple[int]:
     if not re.match('^[0-9a-f]{8}\-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', strl):
@@ -51,6 +51,26 @@ parser.add_argument('-i', '--uuid', required=True, type=regulator_uuid, action='
 # parse arg
 args = parser.parse_args()
 
+# define chat related data
+def DispatchChatType(ctx :BmmoContext.BmmoContext, rawchat: str):
+    if rawchat.startswith("!"):
+        ctx.AnnouncementChat(rawchat[1:])
+        return
+    if rawchat.startswith("#"):
+        ctx.BulletinChat(rawchat[1:])
+        return
+    
+    match = re.match('^@\*?[a-zA-Z0-9_+=.~()\-]+', rawchat)
+    if match:
+        username = match.group(0)[1:]
+        chat_content = rawchat[len(match.group(0)):].lstrip(' ')
+        ctx.WhisperChat(username, chat_content)
+        return
+
+    # no matched
+    # normal chat
+    ctx.Chat(rawchat)
+
 # start context
 ctx = BmmoContext.BmmoContext(output_helper, BmmoContext.BmmoContextParam(
     "127.0.0.1", args.local_port,
@@ -59,6 +79,7 @@ ctx = BmmoContext.BmmoContext(output_helper, BmmoContext.BmmoContextParam(
     args.enable_debug
 ))
 ctx.Start()
+
 # main loop
 while True:
     inc = GetchHelper.getch()
@@ -71,11 +92,17 @@ while True:
         output_helper.StartInput()
         msg_content = input("> ")
         output_helper.StopInput()
-        ctx.Chat(msg_content)
+        DispatchChatType(ctx, msg_content)
     else:
         if inc != b'h':
             output_helper.Print("Unknown command!")
-        output_helper.Print("Command help:\n\tq: quit, p: show players, tab: chat, h: show help.")
+        output_helper.Print("""Command help:
+\tq: quit, p: show players, tab: chat, h: show help.
+\tChat format:
+\t\t> chat-content: Chat
+\t\t> @username chat-content: Whisper
+\t\t> !chat-content: Announcement
+\t\t> #chat-content: Bulletin""")
 
 # wait exit
 ctx.Stop()

@@ -96,21 +96,27 @@ class BmmoUserProfile:
         self.mSector = sector
 class BmmoUserManager:
     __mGnsid2Profile: dict[int, BmmoUserProfile]
+    __mUsername2Gnsid: dict[str, int]
     __mMutex: threading.Lock
     def __init__(self):
         self.__mGnsid2Profile = {}
+        self.__mUsername2Gnsid = {}
         self.__mMutex = threading.Lock()
     def Clear(self):
         with self.__mMutex:
             self.__mGnsid2Profile.clear()
+            self.__mUsername2Gnsid.clear()
     def AddUser(self, profile: BmmoUserProfile):
         with self.__mMutex:
             if profile.mGnsId in self.__mGnsid2Profile: return
             self.__mGnsid2Profile[profile.mGnsId] = profile
+            self.__mUsername2Gnsid[profile.mUsername] = profile.mGnsId
     def DeleteUser(self, gnsid: int):
         with self.__mMutex:
-            if gnsid in self.__mGnsid2Profile:
-                del self.__mGnsid2Profile[gnsid]
+            profile = self.__mGnsid2Profile.get(gnsid, None)
+            if profile:
+                del self.__mGnsid2Profile[profile.mGnsId]
+                del self.__mUsername2Gnsid[profile.mUsername]
     def UpdateCheat(self, gnsid: int, is_cheat: bool):
         with self.__mMutex:
             profile = self.__mGnsid2Profile.get(gnsid, None)
@@ -127,13 +133,16 @@ class BmmoUserManager:
             profile = self.__mGnsid2Profile.get(gnsid, None)
             if profile:
                 profile.mSector = sector
-    def GetUsernameFromGnsUid(self, uid: int) -> str:
+    def GetUsernameFromGnsid(self, uid: int) -> str:
         with self.__mMutex:
             if uid == 0: return "[Server]"
             else:
                 profile = self.__mGnsid2Profile.get(uid, None)
                 if profile is None: return "[Unknown]"
                 else: return profile.mUsername
+    def GetGnsidFromUsername(self, username: str) -> int:
+        with self.__mMutex:
+            return self.__mUsername2Gnsid.get(username, 0)
     def GetUserSheet(self, mapmgr: BmmoMapManager) -> str:
         table = []
 
@@ -259,10 +268,24 @@ class BmmoContext:
 
     def Chat(self, content: str):
         if self.__mStateMachine.IsInState(CppHelper.State.Running):
-            # construct msg data
             msg: BmmoProto.chat_msg = BmmoProto.chat_msg()
             msg.chat_content = content
-            # send it
+            self.__mClient.Send(msg)
+    def WhisperChat(self, target_user: str, content: str):
+        if self.__mStateMachine.IsInState(CppHelper.State.Running):
+            msg: BmmoProto.private_chat_msg = BmmoProto.private_chat_msg()
+            msg.opposite_player_id = self.__mUserManager.GetGnsidFromUsername(target_user)
+            msg.chat_content = content
+            self.__mClient.Send(msg)
+    def AnnouncementChat(self, content: str):
+        if self.__mStateMachine.IsInState(CppHelper.State.Running):
+            msg: BmmoProto.important_notification_msg = BmmoProto.important_notification_msg()
+            msg.chat_content = content
+            self.__mClient.Send(msg)
+    def BulletinChat(self, content: str):
+        if self.__mStateMachine.IsInState(CppHelper.State.Running):
+            msg: BmmoProto.permanent_notification_msg = BmmoProto.permanent_notification_msg()
+            msg.text_content = content
             self.__mClient.Send(msg)
 
     def Profile(self):
@@ -346,7 +369,7 @@ class BmmoContext:
                     self.__mUserManager.AddUser(profile)
                 elif opcode == BmmoProto.OpCode.player_disconnected_msg:
                     lintmsg: BmmoProto.player_disconnected_msg = msg
-                    self.__mOutput.Print(f"[User] {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.connection_id)} left the server.", "yellow")
+                    self.__mOutput.Print(f"[User] {self.__mUserManager.GetUsernameFromGnsid(lintmsg.connection_id)} left the server.", "yellow")
                     # update clients data
                     self.__mUserManager.DeleteUser(lintmsg.connection_id)
                 elif opcode == BmmoProto.OpCode.player_kicked_msg:
@@ -369,13 +392,13 @@ class BmmoContext:
                 # chat
                 elif opcode == BmmoProto.OpCode.chat_msg:
                     lintmsg: BmmoProto.chat_msg = msg
-                    self.__mOutput.Print(f"[Chat] <{BmmoFmt.FormatGnsUuid(lintmsg.player_id)}, {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.player_id)}> {lintmsg.chat_content}", "light_green")
+                    self.__mOutput.Print(f"[Chat] <{BmmoFmt.FormatGnsUuid(lintmsg.player_id)}, {self.__mUserManager.GetUsernameFromGnsid(lintmsg.player_id)}> {lintmsg.chat_content}", "light_green")
                 elif opcode == BmmoProto.OpCode.private_chat_msg:
                     lintmsg: BmmoProto.private_chat_msg = msg
-                    self.__mOutput.Print(f"[Whisper] <{BmmoFmt.FormatGnsUuid(lintmsg.opposite_player_id)}, {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.opposite_player_id)}> {lintmsg.chat_content}", "light_green")
+                    self.__mOutput.Print(f"[Whisper] <{BmmoFmt.FormatGnsUuid(lintmsg.opposite_player_id)}, {self.__mUserManager.GetUsernameFromGnsid(lintmsg.opposite_player_id)}> {lintmsg.chat_content}", "light_green")
                 elif opcode == BmmoProto.OpCode.important_notification_msg:
                     lintmsg: BmmoProto.important_notification_msg = msg
-                    self.__mOutput.Print(f"[Announcement] <{BmmoFmt.FormatGnsUuid(lintmsg.opposite_player_id)}, {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.opposite_player_id)}> {lintmsg.chat_content}", "green")
+                    self.__mOutput.Print(f"[Announcement] <{BmmoFmt.FormatGnsUuid(lintmsg.opposite_player_id)}, {self.__mUserManager.GetUsernameFromGnsid(lintmsg.opposite_player_id)}> {lintmsg.chat_content}", "green")
                 elif opcode == BmmoProto.OpCode.permanent_notification_msg:
                     lintmsg: BmmoProto.permanent_notification_msg = msg
                     self.__mOutput.Print(f"[Bulletin] {lintmsg.title}: {lintmsg.text_content}", "green")
@@ -383,7 +406,7 @@ class BmmoContext:
                 # cheat
                 elif opcode == BmmoProto.OpCode.owned_cheat_state_msg:
                     lintmsg: BmmoProto.owned_cheat_state_msg = msg
-                    self.__mOutput.Print(f"[Cheat] {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.player_id)} turned cheat {BmmoFmt.FormatCheatState(BmmoCvt.Int2Bool(lintmsg.state.cheated))}.", "light_magenta")
+                    self.__mOutput.Print(f"[Cheat] {self.__mUserManager.GetUsernameFromGnsid(lintmsg.player_id)} turned cheat {BmmoFmt.FormatCheatState(BmmoCvt.Int2Bool(lintmsg.state.cheated))}.", "light_magenta")
                     # update cheat state
                     self.__mUserManager.UpdateCheat(lintmsg.player_id, BmmoCvt.Int2Bool(lintmsg.state.cheated))
                 elif opcode == BmmoProto.OpCode.cheat_toggle_msg:
@@ -391,7 +414,7 @@ class BmmoContext:
                     self.__mOutput.Print(f"[Cheat] [Server] toggled cheat {BmmoFmt.FormatCheatState(BmmoCvt.Int2Bool(lintmsg.data.cheated))} globally!", "light_magenta")
                 elif opcode == BmmoProto.OpCode.owned_cheat_toggle_msg:
                     lintmsg: BmmoProto.owned_cheat_toggle_msg = msg
-                    self.__mOutput.Print(f"[Cheat] {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.player_id)} toggled cheat {BmmoFmt.FormatCheatState(BmmoCvt.Int2Bool(lintmsg.state.cheated))} globally!", "light_magenta")
+                    self.__mOutput.Print(f"[Cheat] {self.__mUserManager.GetUsernameFromGnsid(lintmsg.player_id)} toggled cheat {BmmoFmt.FormatCheatState(BmmoCvt.Int2Bool(lintmsg.state.cheated))} globally!", "light_magenta")
 
                 # map + sector
                 elif opcode == BmmoProto.OpCode.map_names_msg:
@@ -402,7 +425,7 @@ class BmmoContext:
                     lintmsg: BmmoProto.current_map_msg = msg
                     self.__mUserManager.UpdateMap(lintmsg.player_id, BmmoMd5(lintmsg.in_map.md5), lintmsg.sector)
                     # show map change
-                    self.__mOutput.Print(f'[Map] {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.player_id)} is at the sector {lintmsg.sector} of "{self.__mMapManager.GetDisplayName(BmmoMd5(lintmsg.in_map.md5))}".', "light_grey")
+                    self.__mOutput.Print(f'[Map] {self.__mUserManager.GetUsernameFromGnsid(lintmsg.player_id)} is at the sector {lintmsg.sector} of "{self.__mMapManager.GetDisplayName(BmmoMd5(lintmsg.in_map.md5))}".', "light_grey")
                 elif opcode == BmmoProto.OpCode.current_sector_msg:
                     lintmsg: BmmoProto.current_sector_msg = msg
                     self.__mUserManager.UpdateSector(lintmsg.player_id, lintmsg.sector)
@@ -411,7 +434,7 @@ class BmmoContext:
                 elif opcode == BmmoProto.OpCode.player_ready_msg:
                     lintmsg: BmmoProto.player_ready_msg = msg
 
-                    words: str = f"[Game] {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.player_id)} is"
+                    words: str = f"[Game] {self.__mUserManager.GetUsernameFromGnsid(lintmsg.player_id)} is"
                     if BmmoCvt.Int2Bool(lintmsg.ready):
                         words += " ready"
                     else:
@@ -422,7 +445,7 @@ class BmmoContext:
                 elif opcode == BmmoProto.OpCode.countdown_msg:
                     lintmsg: BmmoProto.countdown_msg = msg
 
-                    words: str = f"[Game] <{BmmoFmt.FormatGnsUuid(lintmsg.sender)}, {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.sender)}> {self.__mMapManager.GetDisplayName(BmmoMd5(lintmsg.for_map.md5))} - "
+                    words: str = f"[Game] <{BmmoFmt.FormatGnsUuid(lintmsg.sender)}, {self.__mUserManager.GetUsernameFromGnsid(lintmsg.sender)}> {self.__mMapManager.GetDisplayName(BmmoMd5(lintmsg.for_map.md5))} - "
                     cdt = lintmsg.cd_type
                     if cdt == BmmoProto.countdown_type.Go:
                         words += "Go!"
@@ -440,7 +463,7 @@ class BmmoContext:
                     self.__mOutput.Print(words, "light_blue")
                 elif opcode == BmmoProto.OpCode.did_not_finish_msg:
                     lintmsg: BmmoProto.did_not_finish_msg = msg
-                    self.__mOutput.Print(f"{self.__mUserManager.GetUsernameFromGnsUid(lintmsg.player_id)} did not finish {self.__mMapManager.GetDisplayName(BmmoMd5(lintmsg.in_map.md5))} (aborted at sector {lintmsg.sector}).", "light_blue")
+                    self.__mOutput.Print(f"{self.__mUserManager.GetUsernameFromGnsid(lintmsg.player_id)} did not finish {self.__mMapManager.GetDisplayName(BmmoMd5(lintmsg.in_map.md5))} (aborted at sector {lintmsg.sector}).", "light_blue")
                 elif opcode == BmmoProto.OpCode.level_finish_v2_msg:
                     lintmsg: BmmoProto.level_finish_v2_msg = msg
                     # collect some data
@@ -451,7 +474,7 @@ class BmmoContext:
                     timehr: int = timemin // 60
                     timemin = timemin % 60
                     timems: int = int((lintmsg.timeElapsed - float(timetotal)) * 1000)
-                    self.__mOutput.Print(f"[Game] {self.__mUserManager.GetUsernameFromGnsUid(lintmsg.player_id)} finished {self.__mMapManager.GetDisplayName(BmmoMd5(lintmsg.bmap.md5))} in {lintmsg.rank}st place (score: {score}; real time: {timehr:02d}:{timemin:02d}:{timesec:02d}.{timems:03d}).", "light_blue")
+                    self.__mOutput.Print(f"[Game] {self.__mUserManager.GetUsernameFromGnsid(lintmsg.player_id)} finished {self.__mMapManager.GetDisplayName(BmmoMd5(lintmsg.bmap.md5))} in {lintmsg.rank}st place (score: {score}; real time: {timehr:02d}:{timemin:02d}:{timesec:02d}.{timems:03d}).", "light_blue")
 
 
             # if this turn no msg, sleep a while
